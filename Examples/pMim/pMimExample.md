@@ -5,7 +5,7 @@ pMim - Integrating RNA-Seq, miRNA-Seq and pathway information
 
 
 
-The following provides an example of how to use pMim. The markdown code that generated this html file can be doun on my github account at <a href="https://github.com/ellispatrick/sydSeq/blob/master/Examples/pMim/pMimExample.Rmd" target="_blank"> pMimExample.Rmd </a>. Start by reading in the RNA-Seq and miRNA-Seq data.
+The following provides an example of how to use pMim. The markdown code that generated this html file can be found on my github account at <a href="https://github.com/ellispatrick/sydSeq/blob/master/Examples/pMim/pMimExample.Rmd" target="_blank"> pMimExample.Rmd </a>. Start by reading in the RNA-Seq and miRNA-Seq data.
 
 
 
@@ -154,7 +154,7 @@ print(htmlOutput, type = "html")
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>TableID5003d31e3a</title>
+<title>TableIDc344b334b27</title>
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <style type="text/css">
 body {
@@ -170,14 +170,14 @@ body {
 </head>
 <body>
  <!-- Table generated in R 3.1.0 by googleVis 0.5.2 package -->
-<!-- Sun Sep 14 15:55:11 2014 -->
+<!-- Sun Sep 14 17:11:57 2014 -->
 
 
 <!-- jsHeader -->
 <script type="text/javascript">
  
 // jsData 
-function gvisDataTableID5003d31e3a () {
+function gvisDataTableIDc344b334b27 () {
 var data = new google.visualization.DataTable();
 var datajson =
 [
@@ -3081,8 +3081,8 @@ return(data);
 }
  
 // jsDrawChart
-function drawChartTableID5003d31e3a() {
-var data = gvisDataTableID5003d31e3a();
+function drawChartTableIDc344b334b27() {
+var data = gvisDataTableIDc344b334b27();
 var options = {};
 options["allowHtml"] = true;
 options["width"] = "100em";
@@ -3101,7 +3101,7 @@ options["width"] = "100em";
   dataFormat6.format(data, 5);
 
     var chart = new google.visualization.Table(
-    document.getElementById('TableID5003d31e3a')
+    document.getElementById('TableIDc344b334b27')
     );
     chart.draw(data,options);
     
@@ -3125,9 +3125,9 @@ if (newPackage)
   pkgs.push(chartid);
   
 // Add the drawChart function to the global list of callbacks
-callbacks.push(drawChartTableID5003d31e3a);
+callbacks.push(drawChartTableIDc344b334b27);
 })();
-function displayChartTableID5003d31e3a() {
+function displayChartTableIDc344b334b27() {
   var pkgs = window.__gvisPackages = window.__gvisPackages || [];
   var callbacks = window.__gvisCallbacks = window.__gvisCallbacks || [];
   window.clearTimeout(window.__gvisLoad);
@@ -3151,14 +3151,14 @@ callbacks.shift()();
 </script>
  
 <!-- jsChart -->  
-<script type="text/javascript" src="https://www.google.com/jsapi?callback=displayChartTableID5003d31e3a"></script>
+<script type="text/javascript" src="https://www.google.com/jsapi?callback=displayChartTableIDc344b334b27"></script>
  
 <!-- divChart -->
   
-<div id="TableID5003d31e3a"
+<div id="TableIDc344b334b27"
   style="width: 100empx; height: 500px;">
 </div>
- <div><span>Data: results &#8226; Chart ID: <a href="Chart_TableID5003d31e3a.html">TableID5003d31e3a</a> &#8226; <a href="https://github.com/mages/googleVis">googleVis-0.5.2</a></span><br /> 
+ <div><span>Data: results &#8226; Chart ID: <a href="Chart_TableIDc344b334b27.html">TableIDc344b334b27</a> &#8226; <a href="https://github.com/mages/googleVis">googleVis-0.5.2</a></span><br /> 
 <!-- htmlFooter -->
 <span> 
   R version 3.1.0 (2014-04-10) 
