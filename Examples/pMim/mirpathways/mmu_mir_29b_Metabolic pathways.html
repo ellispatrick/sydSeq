@@ -1,0 +1,219 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>TableID14c474765ecf</title>
+<meta http-equiv="content-type" content="text/html;charset=utf-8" />
+<style type="text/css">
+body {
+  color: #444444;
+  font-family: Arial,Helvetica,sans-serif;
+  font-size: 75%;
+  }
+  a {
+  color: #4D87C7;
+  text-decoration: none;
+}
+</style>
+</head>
+<body>
+ <!-- Table generated in R 3.1.0 by googleVis 0.5.2 package -->
+<!-- Sun Sep 14 14:11:01 2014 -->
+
+
+<!-- jsHeader -->
+<script type="text/javascript">
+ 
+// jsData 
+function gvisDataTableID14c474765ecf () {
+var data = new google.visualization.DataTable();
+var datajson =
+[
+ [
+ "Dgkh",
+0.1666929049,
+-0.7941227858,
+0.03040064933 
+],
+[
+ "Tpk1",
+0.2869937761,
+-0.742902118,
+0.04871499941 
+],
+[
+ "Mat1a",
+0.3912658523,
+-0.7036535127,
+0.06492681831 
+],
+[
+ "Smpd3",
+0.231327688,
+-0.699426265,
+0.0667733254 
+],
+[
+ "Pcyt1b",
+0.4230974779,
+-0.4973640226,
+0.1722402947 
+],
+[
+ "Hmgcs1",
+0.2100716942,
+-0.4958624516,
+0.1731226675 
+],
+[
+ "Dnmt3a",
+0.1257137775,
+-0.304308389,
+0.2931120919 
+],
+[
+ "Dnmt3b",
+0.826373062,
+-0.2519570222,
+0.3277966367 
+],
+[
+ "Dbt",
+0.3895103494,
+-0.1342504351,
+0.407515451 
+],
+[
+ "Pdhx",
+0.1638282154,
+-0.1201671721,
+0.4171670335 
+],
+[
+ "Rev3l",
+0.5802916925,
+-0.07882710979,
+0.4455879563 
+],
+[
+ "Dgkd",
+0.6270982575,
+0.1246620116,
+0.5859153101 
+],
+[
+ "Cmpk1",
+0.6086784811,
+0.2472112155,
+0.6690311463 
+],
+[
+ "Cox10",
+0.3473487338,
+0.3090509231,
+0.7099993797 
+],
+[
+ "Gm6741",
+0.6105373165,
+0.4429275064,
+0.7950943559 
+],
+[
+ "Sms",
+0.8400009988,
+0.4997537547,
+0.8291616571 
+] 
+];
+data.addColumn('string','Genes');
+data.addColumn('number','One.Sided.DE.P.value');
+data.addColumn('number','Correlation');
+data.addColumn('number','One.Sided.Correlation.P.value');
+data.addRows(datajson);
+return(data);
+}
+ 
+// jsDrawChart
+function drawChartTableID14c474765ecf() {
+var data = gvisDataTableID14c474765ecf();
+var options = {};
+options["allowHtml"] = true;
+options["width"] = "100em";
+
+  var dataFormat1 = new google.visualization.NumberFormat({pattern:"#.###"});
+  dataFormat1.format(data, 0);
+  var dataFormat2 = new google.visualization.NumberFormat({pattern:"#.###"});
+  dataFormat2.format(data, 1);
+  var dataFormat3 = new google.visualization.NumberFormat({pattern:"#.###"});
+  dataFormat3.format(data, 2);
+  var dataFormat4 = new google.visualization.NumberFormat({pattern:"#.###"});
+  dataFormat4.format(data, 3);
+
+    var chart = new google.visualization.Table(
+    document.getElementById('TableID14c474765ecf')
+    );
+    chart.draw(data,options);
+    
+
+}
+  
+ 
+// jsDisplayChart
+(function() {
+var pkgs = window.__gvisPackages = window.__gvisPackages || [];
+var callbacks = window.__gvisCallbacks = window.__gvisCallbacks || [];
+var chartid = "table";
+  
+// Manually see if chartid is in pkgs (not all browsers support Array.indexOf)
+var i, newPackage = true;
+for (i = 0; newPackage && i < pkgs.length; i++) {
+if (pkgs[i] === chartid)
+newPackage = false;
+}
+if (newPackage)
+  pkgs.push(chartid);
+  
+// Add the drawChart function to the global list of callbacks
+callbacks.push(drawChartTableID14c474765ecf);
+})();
+function displayChartTableID14c474765ecf() {
+  var pkgs = window.__gvisPackages = window.__gvisPackages || [];
+  var callbacks = window.__gvisCallbacks = window.__gvisCallbacks || [];
+  window.clearTimeout(window.__gvisLoad);
+  // The timeout is set to 100 because otherwise the container div we are
+  // targeting might not be part of the document yet
+  window.__gvisLoad = setTimeout(function() {
+  var pkgCount = pkgs.length;
+  google.load("visualization", "1", { packages:pkgs, callback: function() {
+  if (pkgCount != pkgs.length) {
+  // Race condition where another setTimeout call snuck in after us; if
+  // that call added a package, we must not shift its callback
+  return;
+}
+while (callbacks.length > 0)
+callbacks.shift()();
+} });
+}, 100);
+}
+ 
+// jsFooter
+</script>
+ 
+<!-- jsChart -->  
+<script type="text/javascript" src="https://www.google.com/jsapi?callback=displayChartTableID14c474765ecf"></script>
+ 
+<!-- divChart -->
+  
+<div id="TableID14c474765ecf"
+  style="width: 100empx; height: 500px;">
+</div>
+ <div><span>Data: res &#8226; Chart ID: <a href="Chart_TableID14c474765ecf.html">TableID14c474765ecf</a> &#8226; <a href="https://github.com/mages/googleVis">googleVis-0.5.2</a></span><br /> 
+<!-- htmlFooter -->
+<span> 
+  R version 3.1.0 (2014-04-10) 
+  &#8226; <a href="https://developers.google.com/terms/">Google Terms of Use</a> &#8226; <a href="https://google-developers.appspot.com/chart/interactive/docs/gallery/table">Documentation and Data Policy</a>
+</span></div>
+</body>
+</html>
+ html

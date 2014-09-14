@@ -1,0 +1,3294 @@
+pMim - Integrating RNA-Seq, miRNA-Seq and pathway information
+========================================================
+
+The following provides an example of how to use pMim. Start by reading in the RNA-Seq and miRNA-Seq data.
+
+
+```r
+### Load packages
+library(sydSeq)  #For pMimCor
+```
+
+```
+## Loading required package: Biobase
+## Loading required package: BiocGenerics
+## Loading required package: parallel
+## 
+## Attaching package: 'BiocGenerics'
+## 
+## The following objects are masked from 'package:parallel':
+## 
+##     clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+##     clusterExport, clusterMap, parApply, parCapply, parLapply,
+##     parLapplyLB, parRapply, parSapply, parSapplyLB
+## 
+## The following object is masked from 'package:stats':
+## 
+##     xtabs
+## 
+## The following objects are masked from 'package:base':
+## 
+##     anyDuplicated, append, as.data.frame, as.vector, cbind,
+##     colnames, do.call, duplicated, eval, evalq, Filter, Find, get,
+##     intersect, is.unsorted, lapply, Map, mapply, match, mget,
+##     order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+##     rbind, Reduce, rep.int, rownames, sapply, setdiff, sort,
+##     table, tapply, union, unique, unlist
+## 
+## Welcome to Bioconductor
+## 
+##     Vignettes contain introductory material; view with
+##     'browseVignettes()'. To cite Bioconductor, see
+##     'citation("Biobase")', and for packages 'citation("pkgname")'.
+## 
+## Loading required package: GenomicFeatures
+## Loading required package: IRanges
+## Loading required package: GenomicRanges
+## Loading required package: GenomeInfoDb
+## Loading required package: AnnotationDbi
+```
+
+```
+## Warning: replacing previous import by 'DESeq::plotMA' when loading
+## 'sydSeq'
+```
+
+```
+## Note: the specification for S3 class "AsIs" in package 'RJSONIO' seems equivalent to one from package 'BiocGenerics': not turning on duplicate class definitions for this class.
+```
+
+```r
+library(multiMiR)  #For getting miRNA target genes easily
+```
+
+```
+## Loading required package: DBI
+```
+
+```r
+library(goseq)  #For getting KEGG pathways easily
+```
+
+```
+## Loading required package: BiasedUrn
+## Loading required package: geneLenDataBase
+```
+
+```r
+library(KEGG.db)
+```
+
+```
+## 
+## KEGG.db contains mappings based on older data because the original
+##   resource was removed from the the public domain before the most
+##   recent update was produced. This package should now be
+##   considered deprecated and future versions of Bioconductor may
+##   not have it available.  Users who want more current data are
+##   encouraged to look at the KEGGREST or reactome.db packages
+```
+
+```r
+
+### Load Notch2 Knockout counts for use as an example.
+
+load("counts.RData")
+# This loaded the gene counts 'counts' and the miRNA counts 'countsMi'.
+
+### For simplicity, while obviously not ideal, for the following we will work
+### with TMM normalized data. We will also restrict to genes with average
+### count over 20.
+
+tmm = function(DAT) {
+    TMM = DAT[1, ]
+    for (i in (1:dim(DAT)[2])) {
+        Data = cbind(DAT[, i], rowMeans(DAT))
+        X = Data[, ]
+        X[rowSums(Data < 100) > 0, ] = NA
+        Y = log(X[, 1]) - log(X[, 2])
+        TMM1 = mean(Y, na.rm = TRUE, trim = 0.3)
+        TMM[i] = exp(TMM1)
+    }
+    TMM = ((TMM)/exp(mean(log(TMM))))
+    TMM = 1/TMM
+    TMM
+}
+
+Data = counts[rowSums(counts) >= 20, ]
+Data = Data * matrix(tmm(Data), dim(Data)[1], dim(Data)[2], byrow = TRUE)
+
+DataMi = countsMi[rowSums(countsMi) >= 20, ]
+DataMi = DataMi * matrix(tmm(DataMi), dim(DataMi)[1], dim(DataMi)[2], byrow = TRUE)
+```
+
+
+
+The pathway and miRNA target information can then be read in. Here we use KEGG for the pathway information and TargetScan for the miRNA target predictions.
+
+
+
+```r
+# Read in KEGG pathways and Target matrix.
+
+### KEGG can be loaded as follows
+kegg = getgo(rownames(Data), fetch.cats = "KEGG", genome = "mm10", id = "ensGene")
+```
+
+```
+## 
+```
+
+```r
+kegg2ens = Biobase::reverseSplit(kegg)
+kname = mget(names(kegg2ens), env = KEGGPATHID2NAME)
+names(kegg2ens) = kname
+# kegg2ens is our list of pathways
+
+
+### miRNA Targets can be loaded as follows
+
+x = get.multimir(org = "mmu", mirna = NULL, target = rownames(Data), disease.drug = NULL, 
+    table = "targetscan", predicted.cutoff = 30, predicted.cutoff.type = "p", 
+    summary = FALSE)
+x = x[[1]]
+
+# We do not have mature miRNA counts, so do the following.
+miR = rownames(DataMi)
+miR = sub("mir", "miR", miR)
+miR = c(miR, paste(miR, "-3p", sep = ""), paste(miR, "-5p", sep = ""))
+miR = split(miR, c(rownames(DataMi), rownames(DataMi), rownames(DataMi)))
+
+targets = lapply(miR, function(z) unique(x[x[, "mature_mirna_id"] %in% z, "target_ensembl"]))
+# targets is our list of miRNA targets
+```
+
+
+We are now in a position to run pMim and view the top ten mir-pathways that are identified.
+
+
+```r
+classes = substring(colnames(Data), 1, 2)
+names(classes) = colnames(Data)
+
+output = pMim(DataMi = DataMi, DataG = Data, classes = classes, targets = targets, 
+    pathways = kegg2ens)
+```
+
+```
+## You might want to consider filtering out genes with small average expression from your data.
+## You might want to consider filtering out miRNA with small average expression from your data.
+```
+
+```
+## Loading required package: limma
+## 
+## Attaching package: 'limma'
+## 
+## The following object is masked from 'package:BiocGenerics':
+## 
+##     plotMA
+```
+
+```
+## "Up" is WT expression greater than KO expression in miRNA
+```
+
+```r
+
+head(output$Results, 10)
+```
+
+```
+##       miRNA         Pathways                              direction
+##  [1,] "mmu-mir-342" "Apoptosis"                           "Up"     
+##  [2,] "mmu-mir-342" "Toxoplasmosis"                       "Up"     
+##  [3,] "mmu-mir-342" "Small cell lung cancer"              "Up"     
+##  [4,] "mmu-mir-342" "Pathways in cancer"                  "Up"     
+##  [5,] "mmu-mir-342" "Jak-STAT signaling pathway"          "Up"     
+##  [6,] "mmu-mir-760" "Jak-STAT signaling pathway"          "Up"     
+##  [7,] "mmu-mir-760" "Amyotrophic lateral sclerosis (ALS)" "Up"     
+##  [8,] "mmu-mir-760" "Pancreatic cancer"                   "Up"     
+##  [9,] "mmu-mir-760" "Chronic myeloid leukemia"            "Up"     
+## [10,] "mmu-mir-497" "Axon guidance"                       "Up"     
+##       Score                 
+##  [1,] "0.000593643962675761"
+##  [2,] "0.000593643962675761"
+##  [3,] "0.000593643962675761"
+##  [4,] "0.00093702669884149" 
+##  [5,] "0.00126389047439148" 
+##  [6,] "0.00151725313310604" 
+##  [7,] "0.00151725313310604" 
+##  [8,] "0.00151725313310604" 
+##  [9,] "0.00151725313310604" 
+## [10,] "0.00165690470314092"
+```
+
+
+We can also output the results into table which can be embedded in html code or their own html files.
+An example of the output is give in <a href="pMimResults.html" target="_blank"> pMimResults.html </a>.
+
+Clicking on the "genes" links will take you to the genes that lie in the selected mir-pathway. These tables generated by the googleVis package and can be sorted by clicking on the column headers. 
+
+
+
+```r
+load("GeneSymbol.RData")
+
+dir = "mirpathways"
+cutoff = 0.05
+filename = "pMimResults.html"
+GeneSymbol = Symbol
+
+htmlOutput = pMimHTML(output, dir = "mirpathways", cutoff = 0.05, filename = "pMimResults.html", 
+    GeneSymbol = Symbol, outputHTML = TRUE)
+```
+
+```
+## Loading required package: googleVis
+## 
+## Welcome to googleVis version 0.5.2
+## 
+## Please read the Google API Terms of Use
+## before you use the package:
+## https://developers.google.com/terms/
+## 
+## Note, the plot method of googleVis will by default use
+## the standard browser to display its output.
+## 
+## See the googleVis package vignettes for more details.
+## 
+## To suppress the this message use:
+## suppressPackageStartupMessages(library(googleVis))
+```
+
+```
+## Warning: 'mirpathways' already exists
+```
+
+```r
+print(htmlOutput, type = "html")
+```
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>TableID14c41b04275</title>
+<meta http-equiv="content-type" content="text/html;charset=utf-8" />
+<style type="text/css">
+body {
+  color: #444444;
+  font-family: Arial,Helvetica,sans-serif;
+  font-size: 75%;
+  }
+  a {
+  color: #4D87C7;
+  text-decoration: none;
+}
+</style>
+</head>
+<body>
+ <!-- Table generated in R 3.1.0 by googleVis 0.5.2 package -->
+<!-- Sun Sep 14 14:11:05 2014 -->
+
+
+<!-- jsHeader -->
+<script type="text/javascript">
+ 
+// jsData 
+function gvisDataTableID14c41b04275 () {
+var data = new google.visualization.DataTable();
+var datajson =
+[
+ [
+ "mmu-mir-342",
+"Apoptosis",
+"<a href=\"mirpathways/mmu_mir_342_Apoptosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.000593643962675761" 
+],
+[
+ "mmu-mir-342",
+"Toxoplasmosis",
+"<a href=\"mirpathways/mmu_mir_342_Toxoplasmosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.000593643962675761" 
+],
+[
+ "mmu-mir-342",
+"Small cell lung cancer",
+"<a href=\"mirpathways/mmu_mir_342_Small cell lung cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.000593643962675761" 
+],
+[
+ "mmu-mir-342",
+"Pathways in cancer",
+"<a href=\"mirpathways/mmu_mir_342_Pathways in cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.00093702669884149" 
+],
+[
+ "mmu-mir-342",
+"Jak-STAT signaling pathway",
+"<a href=\"mirpathways/mmu_mir_342_Jak_STAT signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.00126389047439148" 
+],
+[
+ "mmu-mir-760",
+"Jak-STAT signaling pathway",
+"<a href=\"mirpathways/mmu_mir_760_Jak_STAT signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.106911134,
+"0.00151725313310604" 
+],
+[
+ "mmu-mir-760",
+"Amyotrophic lateral sclerosis (ALS)",
+"<a href=\"mirpathways/mmu_mir_760_Amyotrophic lateral sclerosis (ALS).html\" target=\"_blank\">genes</a>",
+"Up",
+0.106911134,
+"0.00151725313310604" 
+],
+[
+ "mmu-mir-760",
+"Pancreatic cancer",
+"<a href=\"mirpathways/mmu_mir_760_Pancreatic cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.106911134,
+"0.00151725313310604" 
+],
+[
+ "mmu-mir-760",
+"Chronic myeloid leukemia",
+"<a href=\"mirpathways/mmu_mir_760_Chronic myeloid leukemia.html\" target=\"_blank\">genes</a>",
+"Up",
+0.106911134,
+"0.00151725313310604" 
+],
+[
+ "mmu-mir-497",
+"Axon guidance",
+"<a href=\"mirpathways/mmu_mir_497_Axon guidance.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00165690470314092" 
+],
+[
+ "mmu-mir-340",
+"Vascular smooth muscle contraction",
+"<a href=\"mirpathways/mmu_mir_340_Vascular smooth muscle contraction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.005629332345,
+"0.00202740641630386" 
+],
+[
+ "mmu-mir-342",
+"Focal adhesion",
+"<a href=\"mirpathways/mmu_mir_342_Focal adhesion.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.00284989983857074" 
+],
+[
+ "mmu-mir-497",
+"Jak-STAT signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_Jak_STAT signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00290284407373951" 
+],
+[
+ "mmu-mir-760",
+"Pathways in cancer",
+"<a href=\"mirpathways/mmu_mir_760_Pathways in cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.106911134,
+"0.00312761374967501" 
+],
+[
+ "mmu-mir-497",
+"Small cell lung cancer",
+"<a href=\"mirpathways/mmu_mir_497_Small cell lung cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00324807377459405" 
+],
+[
+ "mmu-mir-497",
+"Non-small cell lung cancer",
+"<a href=\"mirpathways/mmu_mir_497_Non_small cell lung cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00324807377459405" 
+],
+[
+ "mmu-mir-702",
+"Calcium signaling pathway",
+"<a href=\"mirpathways/mmu_mir_702_Calcium signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.00456020037617658" 
+],
+[
+ "mmu-mir-702",
+"Phosphatidylinositol signaling system",
+"<a href=\"mirpathways/mmu_mir_702_Phosphatidylinositol signaling system.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.00456020037617658" 
+],
+[
+ "mmu-mir-702",
+"Long-term potentiation",
+"<a href=\"mirpathways/mmu_mir_702_Long_term potentiation.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.00456020037617658" 
+],
+[
+ "mmu-mir-96",
+"Long-term potentiation",
+"<a href=\"mirpathways/mmu_mir_96_Long_term potentiation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00481092339639557" 
+],
+[
+ "mmu-mir-96",
+"Amyotrophic lateral sclerosis (ALS)",
+"<a href=\"mirpathways/mmu_mir_96_Amyotrophic lateral sclerosis (ALS).html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00481092339639557" 
+],
+[
+ "mmu-mir-497",
+"T cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_T cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00543622449611067" 
+],
+[
+ "mmu-mir-497",
+"B cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_B cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00543622449611067" 
+],
+[
+ "mmu-mir-96",
+"Neuroactive ligand-receptor interaction",
+"<a href=\"mirpathways/mmu_mir_96_Neuroactive ligand_receptor interaction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00569142085632576" 
+],
+[
+ "mmu-mir-96",
+"Oocyte meiosis",
+"<a href=\"mirpathways/mmu_mir_96_Oocyte meiosis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00569142085632576" 
+],
+[
+ "mmu-mir-96",
+"VEGF signaling pathway",
+"<a href=\"mirpathways/mmu_mir_96_VEGF signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00569142085632576" 
+],
+[
+ "mmu-mir-96",
+"B cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_96_B cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00569142085632576" 
+],
+[
+ "mmu-mir-96",
+"Long-term depression",
+"<a href=\"mirpathways/mmu_mir_96_Long_term depression.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00571125804525496" 
+],
+[
+ "mmu-mir-107",
+"Hedgehog signaling pathway",
+"<a href=\"mirpathways/mmu_mir_107_Hedgehog signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.1507888153,
+"0.00571613270054996" 
+],
+[
+ "mmu-mir-96",
+"Natural killer cell mediated cytotoxicity",
+"<a href=\"mirpathways/mmu_mir_96_Natural killer cell mediated cytotoxicity.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00581274928474964" 
+],
+[
+ "mmu-mir-96",
+"T cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_96_T cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00581274928474964" 
+],
+[
+ "mmu-mir-34a",
+"Vascular smooth muscle contraction",
+"<a href=\"mirpathways/mmu_mir_34a_Vascular smooth muscle contraction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.00658536557446096" 
+],
+[
+ "mmu-mir-34a",
+"Long-term potentiation",
+"<a href=\"mirpathways/mmu_mir_34a_Long_term potentiation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.00658536557446096" 
+],
+[
+ "mmu-mir-34a",
+"GnRH signaling pathway",
+"<a href=\"mirpathways/mmu_mir_34a_GnRH signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.00658536557446096" 
+],
+[
+ "mmu-mir-34a",
+"Progesterone-mediated oocyte maturation",
+"<a href=\"mirpathways/mmu_mir_34a_Progesterone_mediated oocyte maturation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.00658536557446096" 
+],
+[
+ "mmu-mir-34a",
+"Insulin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_34a_Insulin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.00662981526689296" 
+],
+[
+ "mmu-mir-497",
+"Neuroactive ligand-receptor interaction",
+"<a href=\"mirpathways/mmu_mir_497_Neuroactive ligand_receptor interaction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00687472616023095" 
+],
+[
+ "mmu-mir-497",
+"Calcium signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_Calcium signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00721671815772536" 
+],
+[
+ "mmu-mir-497",
+"Apoptosis",
+"<a href=\"mirpathways/mmu_mir_497_Apoptosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00721671815772536" 
+],
+[
+ "mmu-mir-497",
+"Tight junction",
+"<a href=\"mirpathways/mmu_mir_497_Tight junction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00721671815772536" 
+],
+[
+ "mmu-mir-497",
+"Aldosterone-regulated sodium reabsorption",
+"<a href=\"mirpathways/mmu_mir_497_Aldosterone_regulated sodium reabsorption.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00721671815772536" 
+],
+[
+ "mmu-mir-497",
+"Glioma",
+"<a href=\"mirpathways/mmu_mir_497_Glioma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00721671815772536" 
+],
+[
+ "mmu-mir-497",
+"Chronic myeloid leukemia",
+"<a href=\"mirpathways/mmu_mir_497_Chronic myeloid leukemia.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00721671815772536" 
+],
+[
+ "mmu-mir-409",
+"Lysine degradation",
+"<a href=\"mirpathways/mmu_mir_409_Lysine degradation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.0111731817,
+"0.00738351515420331" 
+],
+[
+ "mmu-mir-497",
+"Natural killer cell mediated cytotoxicity",
+"<a href=\"mirpathways/mmu_mir_497_Natural killer cell mediated cytotoxicity.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00753195593331812" 
+],
+[
+ "mmu-mir-702",
+"Metabolic pathways",
+"<a href=\"mirpathways/mmu_mir_702_Metabolic pathways.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.00805880842503765" 
+],
+[
+ "mmu-mir-702",
+"Alzheimer's disease",
+"<a href=\"mirpathways/mmu_mir_702_Alzheimer's disease.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.00805880842503765" 
+],
+[
+ "mmu-mir-702",
+"Huntington's disease",
+"<a href=\"mirpathways/mmu_mir_702_Huntington's disease.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.00805880842503765" 
+],
+[
+ "mmu-mir-96",
+"Progesterone-mediated oocyte maturation",
+"<a href=\"mirpathways/mmu_mir_96_Progesterone_mediated oocyte maturation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00833614809950592" 
+],
+[
+ "mmu-mir-497",
+"Prostate cancer",
+"<a href=\"mirpathways/mmu_mir_497_Prostate cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0084485664419026" 
+],
+[
+ "mmu-mir-34a",
+"Chemokine signaling pathway",
+"<a href=\"mirpathways/mmu_mir_34a_Chemokine signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.00856451514039826" 
+],
+[
+ "mmu-mir-497",
+"Hedgehog signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_Hedgehog signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00870576286714095" 
+],
+[
+ "mmu-mir-497",
+"Pathways in cancer",
+"<a href=\"mirpathways/mmu_mir_497_Pathways in cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00870576286714095" 
+],
+[
+ "mmu-mir-497",
+"Renal cell carcinoma",
+"<a href=\"mirpathways/mmu_mir_497_Renal cell carcinoma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00870576286714095" 
+],
+[
+ "mmu-mir-29a",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29a_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.00893160945920672" 
+],
+[
+ "mmu-mir-96",
+"Colorectal cancer",
+"<a href=\"mirpathways/mmu_mir_96_Colorectal cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900400556065285" 
+],
+[
+ "mmu-mir-96",
+"Endometrial cancer",
+"<a href=\"mirpathways/mmu_mir_96_Endometrial cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900400556065285" 
+],
+[
+ "mmu-mir-96",
+"Thyroid cancer",
+"<a href=\"mirpathways/mmu_mir_96_Thyroid cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900400556065285" 
+],
+[
+ "mmu-mir-96",
+"Dorso-ventral axis formation",
+"<a href=\"mirpathways/mmu_mir_96_Dorso_ventral axis formation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900622454267933" 
+],
+[
+ "mmu-mir-96",
+"Melanogenesis",
+"<a href=\"mirpathways/mmu_mir_96_Melanogenesis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900622454267933" 
+],
+[
+ "mmu-mir-96",
+"Renal cell carcinoma",
+"<a href=\"mirpathways/mmu_mir_96_Renal cell carcinoma.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900622454267933" 
+],
+[
+ "mmu-mir-96",
+"Pancreatic cancer",
+"<a href=\"mirpathways/mmu_mir_96_Pancreatic cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900622454267933" 
+],
+[
+ "mmu-mir-96",
+"Melanoma",
+"<a href=\"mirpathways/mmu_mir_96_Melanoma.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900622454267933" 
+],
+[
+ "mmu-mir-96",
+"Bladder cancer",
+"<a href=\"mirpathways/mmu_mir_96_Bladder cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900622454267933" 
+],
+[
+ "mmu-mir-96",
+"Chronic myeloid leukemia",
+"<a href=\"mirpathways/mmu_mir_96_Chronic myeloid leukemia.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900622454267933" 
+],
+[
+ "mmu-mir-96",
+"Non-small cell lung cancer",
+"<a href=\"mirpathways/mmu_mir_96_Non_small cell lung cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.00900622454267933" 
+],
+[
+ "mmu-mir-34a",
+"Oocyte meiosis",
+"<a href=\"mirpathways/mmu_mir_34a_Oocyte meiosis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.00936910951932207" 
+],
+[
+ "mmu-mir-497",
+"VEGF signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_VEGF signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00976186682359442" 
+],
+[
+ "mmu-mir-497",
+"Melanoma",
+"<a href=\"mirpathways/mmu_mir_497_Melanoma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.00976186682359442" 
+],
+[
+ "mmu-mir-29b",
+"Cytokine-cytokine receptor interaction",
+"<a href=\"mirpathways/mmu_mir_29b_Cytokine_cytokine receptor interaction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.00994716150900747" 
+],
+[
+ "mmu-mir-29b",
+"Apoptosis",
+"<a href=\"mirpathways/mmu_mir_29b_Apoptosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.00994716150900747" 
+],
+[
+ "mmu-mir-29b",
+"Osteoclast differentiation",
+"<a href=\"mirpathways/mmu_mir_29b_Osteoclast differentiation.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.00994716150900747" 
+],
+[
+ "mmu-mir-29b",
+"Regulation of actin cytoskeleton",
+"<a href=\"mirpathways/mmu_mir_29b_Regulation of actin cytoskeleton.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.00994716150900747" 
+],
+[
+ "mmu-mir-29b",
+"Adipocytokine signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29b_Adipocytokine signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.00994716150900747" 
+],
+[
+ "mmu-mir-29b",
+"Chagas disease (American trypanosomiasis)",
+"<a href=\"mirpathways/mmu_mir_29b_Chagas disease (American trypanosomiasis).html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.00994716150900747" 
+],
+[
+ "mmu-mir-29b",
+"Toxoplasmosis",
+"<a href=\"mirpathways/mmu_mir_29b_Toxoplasmosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.00994716150900747" 
+],
+[
+ "mmu-mir-29b",
+"Hepatitis C",
+"<a href=\"mirpathways/mmu_mir_29b_Hepatitis C.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.00994716150900747" 
+],
+[
+ "mmu-mir-29b",
+"Colorectal cancer",
+"<a href=\"mirpathways/mmu_mir_29b_Colorectal cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.00994716150900747" 
+],
+[
+ "mmu-mir-29b",
+"Endometrial cancer",
+"<a href=\"mirpathways/mmu_mir_29b_Endometrial cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.00994716150900747" 
+],
+[
+ "mmu-mir-370",
+"Tight junction",
+"<a href=\"mirpathways/mmu_mir_370_Tight junction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.03043214438,
+"0.010150715461039" 
+],
+[
+ "mmu-mir-335",
+"Metabolic pathways",
+"<a href=\"mirpathways/mmu_mir_335_Metabolic pathways.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0620716083,
+"0.0104695545964932" 
+],
+[
+ "mmu-mir-335",
+"Ubiquitin mediated proteolysis",
+"<a href=\"mirpathways/mmu_mir_335_Ubiquitin mediated proteolysis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0620716083,
+"0.0104695545964932" 
+],
+[
+ "mmu-mir-335",
+"Endocytosis",
+"<a href=\"mirpathways/mmu_mir_335_Endocytosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0620716083,
+"0.0104695545964932" 
+],
+[
+ "mmu-mir-702",
+"Amoebiasis",
+"<a href=\"mirpathways/mmu_mir_702_Amoebiasis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.0106231628876489" 
+],
+[
+ "mmu-mir-29b",
+"Type II diabetes mellitus",
+"<a href=\"mirpathways/mmu_mir_29b_Type II diabetes mellitus.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0106829339906667" 
+],
+[
+ "mmu-mir-374c",
+"RNA transport",
+"<a href=\"mirpathways/mmu_mir_374c_RNA transport.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2873045979,
+"0.0111065370671359" 
+],
+[
+ "mmu-mir-200a",
+"ErbB signaling pathway",
+"<a href=\"mirpathways/mmu_mir_200a_ErbB signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1967983761,
+"0.0114386011444707" 
+],
+[
+ "mmu-mir-200a",
+"Tight junction",
+"<a href=\"mirpathways/mmu_mir_200a_Tight junction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1967983761,
+"0.0114386011444707" 
+],
+[
+ "mmu-mir-200a",
+"GnRH signaling pathway",
+"<a href=\"mirpathways/mmu_mir_200a_GnRH signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1967983761,
+"0.0114386011444707" 
+],
+[
+ "mmu-mir-335",
+"Wnt signaling pathway",
+"<a href=\"mirpathways/mmu_mir_335_Wnt signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0620716083,
+"0.0117594536897428" 
+],
+[
+ "mmu-mir-96",
+"Osteoclast differentiation",
+"<a href=\"mirpathways/mmu_mir_96_Osteoclast differentiation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.0121511919386316" 
+],
+[
+ "mmu-mir-200a",
+"Gap junction",
+"<a href=\"mirpathways/mmu_mir_200a_Gap junction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1967983761,
+"0.0125067683715781" 
+],
+[
+ "mmu-mir-212",
+"Cytokine-cytokine receptor interaction",
+"<a href=\"mirpathways/mmu_mir_212_Cytokine_cytokine receptor interaction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1095308358,
+"0.0130962924644497" 
+],
+[
+ "mmu-mir-212",
+"Vascular smooth muscle contraction",
+"<a href=\"mirpathways/mmu_mir_212_Vascular smooth muscle contraction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1095308358,
+"0.0130962924644497" 
+],
+[
+ "mmu-mir-212",
+"Adherens junction",
+"<a href=\"mirpathways/mmu_mir_212_Adherens junction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1095308358,
+"0.0130962924644497" 
+],
+[
+ "mmu-mir-212",
+"Progesterone-mediated oocyte maturation",
+"<a href=\"mirpathways/mmu_mir_212_Progesterone_mediated oocyte maturation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1095308358,
+"0.0130962924644497" 
+],
+[
+ "mmu-mir-212",
+"Malaria",
+"<a href=\"mirpathways/mmu_mir_212_Malaria.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1095308358,
+"0.0130962924644497" 
+],
+[
+ "mmu-mir-212",
+"Renal cell carcinoma",
+"<a href=\"mirpathways/mmu_mir_212_Renal cell carcinoma.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1095308358,
+"0.0130962924644497" 
+],
+[
+ "mmu-mir-760",
+"Endocytosis",
+"<a href=\"mirpathways/mmu_mir_760_Endocytosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.106911134,
+"0.0130990609271332" 
+],
+[
+ "mmu-mir-342",
+"N-Glycan biosynthesis",
+"<a href=\"mirpathways/mmu_mir_342_N_Glycan biosynthesis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0134361105872994" 
+],
+[
+ "mmu-mir-342",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_342_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0134361105872994" 
+],
+[
+ "mmu-mir-98",
+"ECM-receptor interaction",
+"<a href=\"mirpathways/mmu_mir_98_ECM_receptor interaction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2021151766,
+"0.0135804488216793" 
+],
+[
+ "mmu-mir-98",
+"Protein digestion and absorption",
+"<a href=\"mirpathways/mmu_mir_98_Protein digestion and absorption.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2021151766,
+"0.0135804488216793" 
+],
+[
+ "mmu-mir-409",
+"mRNA surveillance pathway",
+"<a href=\"mirpathways/mmu_mir_409_mRNA surveillance pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.0111731817,
+"0.0141163526462688" 
+],
+[
+ "mmu-mir-497",
+"Dorso-ventral axis formation",
+"<a href=\"mirpathways/mmu_mir_497_Dorso_ventral axis formation.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0141663460897799" 
+],
+[
+ "mmu-mir-29b",
+"Neurotrophin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29b_Neurotrophin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0144371702613112" 
+],
+[
+ "mmu-mir-3475",
+"Oocyte meiosis",
+"<a href=\"mirpathways/mmu_mir_3475_Oocyte meiosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2526214103,
+"0.0146175322068706" 
+],
+[
+ "mmu-mir-200a",
+"Fc epsilon RI signaling pathway",
+"<a href=\"mirpathways/mmu_mir_200a_Fc epsilon RI signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1967983761,
+"0.0151590940000285" 
+],
+[
+ "mmu-mir-29b",
+"Phosphatidylinositol signaling system",
+"<a href=\"mirpathways/mmu_mir_29b_Phosphatidylinositol signaling system.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.015239509684812" 
+],
+[
+ "mmu-mir-29b",
+"Focal adhesion",
+"<a href=\"mirpathways/mmu_mir_29b_Focal adhesion.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.015239509684812" 
+],
+[
+ "mmu-mir-29b",
+"Non-small cell lung cancer",
+"<a href=\"mirpathways/mmu_mir_29b_Non_small cell lung cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.015239509684812" 
+],
+[
+ "mmu-mir-181b",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.015830806279838" 
+],
+[
+ "mmu-mir-181b",
+"ErbB signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_ErbB signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.015830806279838" 
+],
+[
+ "mmu-mir-181b",
+"mTOR signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_mTOR signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.015830806279838" 
+],
+[
+ "mmu-mir-181b",
+"T cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_T cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.015830806279838" 
+],
+[
+ "mmu-mir-181b",
+"Long-term potentiation",
+"<a href=\"mirpathways/mmu_mir_181b_Long_term potentiation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.015830806279838" 
+],
+[
+ "mmu-mir-181b",
+"Neurotrophin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_Neurotrophin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.015830806279838" 
+],
+[
+ "mmu-mir-181b",
+"Insulin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_Insulin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.015830806279838" 
+],
+[
+ "mmu-mir-181b",
+"Chronic myeloid leukemia",
+"<a href=\"mirpathways/mmu_mir_181b_Chronic myeloid leukemia.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.015830806279838" 
+],
+[
+ "mmu-mir-34a",
+"Amoebiasis",
+"<a href=\"mirpathways/mmu_mir_34a_Amoebiasis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.0161152238891962" 
+],
+[
+ "mmu-mir-200a",
+"Focal adhesion",
+"<a href=\"mirpathways/mmu_mir_200a_Focal adhesion.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1967983761,
+"0.0162652728261773" 
+],
+[
+ "mmu-mir-181b",
+"Osteoclast differentiation",
+"<a href=\"mirpathways/mmu_mir_181b_Osteoclast differentiation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0166223768776371" 
+],
+[
+ "mmu-mir-181b",
+"Long-term depression",
+"<a href=\"mirpathways/mmu_mir_181b_Long_term depression.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0166223768776371" 
+],
+[
+ "mmu-mir-96",
+"Fc epsilon RI signaling pathway",
+"<a href=\"mirpathways/mmu_mir_96_Fc epsilon RI signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.0170762153413859" 
+],
+[
+ "mmu-mir-130a",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_130a_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2299840581,
+"0.0171967770020785" 
+],
+[
+ "mmu-mir-96",
+"Wnt signaling pathway",
+"<a href=\"mirpathways/mmu_mir_96_Wnt signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.0172955385022997" 
+],
+[
+ "mmu-mir-497",
+"Carbohydrate digestion and absorption",
+"<a href=\"mirpathways/mmu_mir_497_Carbohydrate digestion and absorption.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0175078478129699" 
+],
+[
+ "mmu-mir-29b",
+"Insulin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29b_Insulin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0176114787025037" 
+],
+[
+ "mmu-mir-497",
+"Sphingolipid metabolism",
+"<a href=\"mirpathways/mmu_mir_497_Sphingolipid metabolism.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0176985789240202" 
+],
+[
+ "mmu-mir-497",
+"Ubiquitin mediated proteolysis",
+"<a href=\"mirpathways/mmu_mir_497_Ubiquitin mediated proteolysis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0176985789240202" 
+],
+[
+ "mmu-mir-497",
+"Proximal tubule bicarbonate reclamation",
+"<a href=\"mirpathways/mmu_mir_497_Proximal tubule bicarbonate reclamation.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0176985789240202" 
+],
+[
+ "mmu-mir-497",
+"Acute myeloid leukemia",
+"<a href=\"mirpathways/mmu_mir_497_Acute myeloid leukemia.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0176985789240202" 
+],
+[
+ "mmu-mir-497",
+"Chemokine signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_Chemokine signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0178176924610714" 
+],
+[
+ "mmu-mir-497",
+"Gap junction",
+"<a href=\"mirpathways/mmu_mir_497_Gap junction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0178176924610714" 
+],
+[
+ "mmu-mir-497",
+"Neurotrophin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_Neurotrophin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0178176924610714" 
+],
+[
+ "mmu-mir-497",
+"Pancreatic secretion",
+"<a href=\"mirpathways/mmu_mir_497_Pancreatic secretion.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0178176924610714" 
+],
+[
+ "mmu-mir-98",
+"Axon guidance",
+"<a href=\"mirpathways/mmu_mir_98_Axon guidance.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2021151766,
+"0.01802182431352" 
+],
+[
+ "mmu-mir-497",
+"Cytokine-cytokine receptor interaction",
+"<a href=\"mirpathways/mmu_mir_497_Cytokine_cytokine receptor interaction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0182879840601588" 
+],
+[
+ "mmu-mir-96",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_96_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.0187616972231457" 
+],
+[
+ "mmu-mir-96",
+"Prostate cancer",
+"<a href=\"mirpathways/mmu_mir_96_Prostate cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.0187616972231457" 
+],
+[
+ "mmu-mir-96",
+"Acute myeloid leukemia",
+"<a href=\"mirpathways/mmu_mir_96_Acute myeloid leukemia.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.0187616972231457" 
+],
+[
+ "mmu-mir-29b",
+"Aldosterone-regulated sodium reabsorption",
+"<a href=\"mirpathways/mmu_mir_29b_Aldosterone_regulated sodium reabsorption.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0188789421294119" 
+],
+[
+ "mmu-mir-29b",
+"Pathways in cancer",
+"<a href=\"mirpathways/mmu_mir_29b_Pathways in cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0188789421294119" 
+],
+[
+ "mmu-mir-497",
+"Regulation of actin cytoskeleton",
+"<a href=\"mirpathways/mmu_mir_497_Regulation of actin cytoskeleton.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0193349738330965" 
+],
+[
+ "mmu-mir-342",
+"Regulation of actin cytoskeleton",
+"<a href=\"mirpathways/mmu_mir_342_Regulation of actin cytoskeleton.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0196226751536055" 
+],
+[
+ "mmu-mir-200b",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_200b_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.249331228,
+"0.0204721238516045" 
+],
+[
+ "mmu-mir-200b",
+"Protein processing in endoplasmic reticulum",
+"<a href=\"mirpathways/mmu_mir_200b_Protein processing in endoplasmic reticulum.html\" target=\"_blank\">genes</a>",
+"Down",
+0.249331228,
+"0.0204721238516045" 
+],
+[
+ "mmu-mir-499",
+"Axon guidance",
+"<a href=\"mirpathways/mmu_mir_499_Axon guidance.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2155030742,
+"0.0204980356531615" 
+],
+[
+ "mmu-mir-499",
+"Focal adhesion",
+"<a href=\"mirpathways/mmu_mir_499_Focal adhesion.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2155030742,
+"0.0204980356531615" 
+],
+[
+ "mmu-mir-499",
+"Natural killer cell mediated cytotoxicity",
+"<a href=\"mirpathways/mmu_mir_499_Natural killer cell mediated cytotoxicity.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2155030742,
+"0.0204980356531615" 
+],
+[
+ "mmu-mir-499",
+"T cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_499_T cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2155030742,
+"0.0204980356531615" 
+],
+[
+ "mmu-mir-499",
+"Fc epsilon RI signaling pathway",
+"<a href=\"mirpathways/mmu_mir_499_Fc epsilon RI signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2155030742,
+"0.0204980356531615" 
+],
+[
+ "mmu-mir-497",
+"Vasopressin-regulated water reabsorption",
+"<a href=\"mirpathways/mmu_mir_497_Vasopressin_regulated water reabsorption.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.021014749806532" 
+],
+[
+ "mmu-mir-29b",
+"Basal cell carcinoma",
+"<a href=\"mirpathways/mmu_mir_29b_Basal cell carcinoma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0211891552386399" 
+],
+[
+ "mmu-mir-29b",
+"Amoebiasis",
+"<a href=\"mirpathways/mmu_mir_29b_Amoebiasis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0212154801558591" 
+],
+[
+ "mmu-mir-29b",
+"Metabolic pathways",
+"<a href=\"mirpathways/mmu_mir_29b_Metabolic pathways.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0212361436253121" 
+],
+[
+ "mmu-mir-29b",
+"Wnt signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29b_Wnt signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0212361436253121" 
+],
+[
+ "mmu-mir-29b",
+"Renal cell carcinoma",
+"<a href=\"mirpathways/mmu_mir_29b_Renal cell carcinoma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0212361436253121" 
+],
+[
+ "mmu-mir-29b",
+"Small cell lung cancer",
+"<a href=\"mirpathways/mmu_mir_29b_Small cell lung cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0212361436253121" 
+],
+[
+ "mmu-mir-182",
+"Apoptosis",
+"<a href=\"mirpathways/mmu_mir_182_Apoptosis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Vascular smooth muscle contraction",
+"<a href=\"mirpathways/mmu_mir_182_Vascular smooth muscle contraction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Axon guidance",
+"<a href=\"mirpathways/mmu_mir_182_Axon guidance.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"VEGF signaling pathway",
+"<a href=\"mirpathways/mmu_mir_182_VEGF signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Gap junction",
+"<a href=\"mirpathways/mmu_mir_182_Gap junction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"B cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_182_B cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Long-term potentiation",
+"<a href=\"mirpathways/mmu_mir_182_Long_term potentiation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Taste transduction",
+"<a href=\"mirpathways/mmu_mir_182_Taste transduction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Vasopressin-regulated water reabsorption",
+"<a href=\"mirpathways/mmu_mir_182_Vasopressin_regulated water reabsorption.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Salivary secretion",
+"<a href=\"mirpathways/mmu_mir_182_Salivary secretion.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Gastric acid secretion",
+"<a href=\"mirpathways/mmu_mir_182_Gastric acid secretion.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Pancreatic secretion",
+"<a href=\"mirpathways/mmu_mir_182_Pancreatic secretion.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Bile secretion",
+"<a href=\"mirpathways/mmu_mir_182_Bile secretion.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Amoebiasis",
+"<a href=\"mirpathways/mmu_mir_182_Amoebiasis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-182",
+"Dilated cardiomyopathy",
+"<a href=\"mirpathways/mmu_mir_182_Dilated cardiomyopathy.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0214053352089481" 
+],
+[
+ "mmu-mir-351",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_351_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2707608118,
+"0.0222160711464638" 
+],
+[
+ "mmu-mir-34a",
+"Apoptosis",
+"<a href=\"mirpathways/mmu_mir_34a_Apoptosis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.0224380827831322" 
+],
+[
+ "mmu-mir-34a",
+"Fc gamma R-mediated phagocytosis",
+"<a href=\"mirpathways/mmu_mir_34a_Fc gamma R_mediated phagocytosis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.0224380827831322" 
+],
+[
+ "mmu-mir-34a",
+"Bacterial invasion of epithelial cells",
+"<a href=\"mirpathways/mmu_mir_34a_Bacterial invasion of epithelial cells.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.0224380827831322" 
+],
+[
+ "mmu-mir-96",
+"Toll-like receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_96_Toll_like receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.0227412414223576" 
+],
+[
+ "mmu-mir-29b",
+"Leukocyte transendothelial migration",
+"<a href=\"mirpathways/mmu_mir_29b_Leukocyte transendothelial migration.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0234174116533036" 
+],
+[
+ "mmu-mir-702",
+"Melanogenesis",
+"<a href=\"mirpathways/mmu_mir_702_Melanogenesis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.0235575189636043" 
+],
+[
+ "mmu-mir-181b",
+"Oocyte meiosis",
+"<a href=\"mirpathways/mmu_mir_181b_Oocyte meiosis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0241108846136114" 
+],
+[
+ "mmu-mir-181b",
+"Fc epsilon RI signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_Fc epsilon RI signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0241108846136114" 
+],
+[
+ "mmu-mir-181b",
+"Fc gamma R-mediated phagocytosis",
+"<a href=\"mirpathways/mmu_mir_181b_Fc gamma R_mediated phagocytosis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0241108846136114" 
+],
+[
+ "mmu-mir-181b",
+"Progesterone-mediated oocyte maturation",
+"<a href=\"mirpathways/mmu_mir_181b_Progesterone_mediated oocyte maturation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0241108846136114" 
+],
+[
+ "mmu-mir-181b",
+"Type II diabetes mellitus",
+"<a href=\"mirpathways/mmu_mir_181b_Type II diabetes mellitus.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0241108846136114" 
+],
+[
+ "mmu-mir-3065",
+"Axon guidance",
+"<a href=\"mirpathways/mmu_mir_3065_Axon guidance.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3858484078,
+"0.0241282062025913" 
+],
+[
+ "mmu-mir-338",
+"Dilated cardiomyopathy",
+"<a href=\"mirpathways/mmu_mir_338_Dilated cardiomyopathy.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3858484078,
+"0.0244512702664875" 
+],
+[
+ "mmu-mir-342",
+"Sphingolipid metabolism",
+"<a href=\"mirpathways/mmu_mir_342_Sphingolipid metabolism.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0248280177150461" 
+],
+[
+ "mmu-mir-96",
+"Neurotrophin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_96_Neurotrophin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.0266095693929634" 
+],
+[
+ "mmu-mir-342",
+"Metabolic pathways",
+"<a href=\"mirpathways/mmu_mir_342_Metabolic pathways.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-342",
+"Cytokine-cytokine receptor interaction",
+"<a href=\"mirpathways/mmu_mir_342_Cytokine_cytokine receptor interaction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-342",
+"Chemokine signaling pathway",
+"<a href=\"mirpathways/mmu_mir_342_Chemokine signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-342",
+"Wnt signaling pathway",
+"<a href=\"mirpathways/mmu_mir_342_Wnt signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-342",
+"T cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_342_T cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-342",
+"Neurotrophin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_342_Neurotrophin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-342",
+"Melanogenesis",
+"<a href=\"mirpathways/mmu_mir_342_Melanogenesis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-342",
+"Pancreatic cancer",
+"<a href=\"mirpathways/mmu_mir_342_Pancreatic cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-342",
+"Glioma",
+"<a href=\"mirpathways/mmu_mir_342_Glioma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-342",
+"Melanoma",
+"<a href=\"mirpathways/mmu_mir_342_Melanoma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-342",
+"Chronic myeloid leukemia",
+"<a href=\"mirpathways/mmu_mir_342_Chronic myeloid leukemia.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0269787038224328" 
+],
+[
+ "mmu-mir-181b",
+"Pathways in cancer",
+"<a href=\"mirpathways/mmu_mir_181b_Pathways in cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0270655962748462" 
+],
+[
+ "mmu-mir-497",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0275437357071634" 
+],
+[
+ "mmu-mir-181b",
+"Alanine, aspartate and glutamate metabolism",
+"<a href=\"mirpathways/mmu_mir_181b_Alanine, aspartate and glutamate metabolism.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0276431150504417" 
+],
+[
+ "mmu-mir-181b",
+"Ubiquitin mediated proteolysis",
+"<a href=\"mirpathways/mmu_mir_181b_Ubiquitin mediated proteolysis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0276431150504417" 
+],
+[
+ "mmu-mir-181b",
+"Protein processing in endoplasmic reticulum",
+"<a href=\"mirpathways/mmu_mir_181b_Protein processing in endoplasmic reticulum.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0276431150504417" 
+],
+[
+ "mmu-mir-181b",
+"Dorso-ventral axis formation",
+"<a href=\"mirpathways/mmu_mir_181b_Dorso_ventral axis formation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0276431150504417" 
+],
+[
+ "mmu-mir-181b",
+"Adherens junction",
+"<a href=\"mirpathways/mmu_mir_181b_Adherens junction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0276431150504417" 
+],
+[
+ "mmu-mir-181b",
+"Gap junction",
+"<a href=\"mirpathways/mmu_mir_181b_Gap junction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0276431150504417" 
+],
+[
+ "mmu-mir-181b",
+"B cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_B cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0276431150504417" 
+],
+[
+ "mmu-mir-181b",
+"Regulation of actin cytoskeleton",
+"<a href=\"mirpathways/mmu_mir_181b_Regulation of actin cytoskeleton.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0276431150504417" 
+],
+[
+ "mmu-mir-181b",
+"Acute myeloid leukemia",
+"<a href=\"mirpathways/mmu_mir_181b_Acute myeloid leukemia.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0276431150504417" 
+],
+[
+ "mmu-mir-30c",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_30c_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2799454066,
+"0.0283200300240105" 
+],
+[
+ "mmu-mir-30c",
+"Neuroactive ligand-receptor interaction",
+"<a href=\"mirpathways/mmu_mir_30c_Neuroactive ligand_receptor interaction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2799454066,
+"0.0283200300240105" 
+],
+[
+ "mmu-mir-96",
+"Fc gamma R-mediated phagocytosis",
+"<a href=\"mirpathways/mmu_mir_96_Fc gamma R_mediated phagocytosis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.0286425035156618" 
+],
+[
+ "mmu-mir-672",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_672_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.1781516102,
+"0.0286871776144756" 
+],
+[
+ "mmu-mir-182",
+"Oocyte meiosis",
+"<a href=\"mirpathways/mmu_mir_182_Oocyte meiosis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0297301159099129" 
+],
+[
+ "mmu-mir-182",
+"Progesterone-mediated oocyte maturation",
+"<a href=\"mirpathways/mmu_mir_182_Progesterone_mediated oocyte maturation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0297301159099129" 
+],
+[
+ "mmu-mir-379",
+"RNA transport",
+"<a href=\"mirpathways/mmu_mir_379_RNA transport.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2059478827,
+"0.0297857029351057" 
+],
+[
+ "mmu-mir-29b",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29b_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0299359690064758" 
+],
+[
+ "mmu-mir-29b",
+"Chemokine signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29b_Chemokine signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0299359690064758" 
+],
+[
+ "mmu-mir-29b",
+"Melanoma",
+"<a href=\"mirpathways/mmu_mir_29b_Melanoma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0299359690064758" 
+],
+[
+ "mmu-mir-181b",
+"Vascular smooth muscle contraction",
+"<a href=\"mirpathways/mmu_mir_181b_Vascular smooth muscle contraction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0304847617606238" 
+],
+[
+ "mmu-mir-181b",
+"GnRH signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_GnRH signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0304847617606238" 
+],
+[
+ "mmu-mir-182",
+"ECM-receptor interaction",
+"<a href=\"mirpathways/mmu_mir_182_ECM_receptor interaction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0305830074991329" 
+],
+[
+ "mmu-mir-29a",
+"Apoptosis",
+"<a href=\"mirpathways/mmu_mir_29a_Apoptosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0308847884714321" 
+],
+[
+ "mmu-mir-29a",
+"T cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29a_T cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0308847884714321" 
+],
+[
+ "mmu-mir-29a",
+"Endometrial cancer",
+"<a href=\"mirpathways/mmu_mir_29a_Endometrial cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0308847884714321" 
+],
+[
+ "mmu-mir-29a",
+"Glioma",
+"<a href=\"mirpathways/mmu_mir_29a_Glioma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0308847884714321" 
+],
+[
+ "mmu-mir-194",
+"Focal adhesion",
+"<a href=\"mirpathways/mmu_mir_194_Focal adhesion.html\" target=\"_blank\">genes</a>",
+"Up",
+0.3270012056,
+"0.0309349078456777" 
+],
+[
+ "mmu-mir-194",
+"ECM-receptor interaction",
+"<a href=\"mirpathways/mmu_mir_194_ECM_receptor interaction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.3270012056,
+"0.0309349078456777" 
+],
+[
+ "mmu-mir-194",
+"Cell adhesion molecules (CAMs)",
+"<a href=\"mirpathways/mmu_mir_194_Cell adhesion molecules (CAMs).html\" target=\"_blank\">genes</a>",
+"Up",
+0.3270012056,
+"0.0309349078456777" 
+],
+[
+ "mmu-mir-184",
+"Metabolic pathways",
+"<a href=\"mirpathways/mmu_mir_184_Metabolic pathways.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2237801802,
+"0.0309928025249278" 
+],
+[
+ "mmu-mir-184",
+"Phosphatidylinositol signaling system",
+"<a href=\"mirpathways/mmu_mir_184_Phosphatidylinositol signaling system.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2237801802,
+"0.0309928025249278" 
+],
+[
+ "mmu-mir-184",
+"Fc gamma R-mediated phagocytosis",
+"<a href=\"mirpathways/mmu_mir_184_Fc gamma R_mediated phagocytosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2237801802,
+"0.0309928025249278" 
+],
+[
+ "mmu-mir-200a",
+"Viral myocarditis",
+"<a href=\"mirpathways/mmu_mir_200a_Viral myocarditis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1967983761,
+"0.0310259993658867" 
+],
+[
+ "mmu-mir-467d",
+"Cytokine-cytokine receptor interaction",
+"<a href=\"mirpathways/mmu_mir_467d_Cytokine_cytokine receptor interaction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1013738727,
+"0.0313048255321205" 
+],
+[
+ "mmu-mir-467d",
+"Endocytosis",
+"<a href=\"mirpathways/mmu_mir_467d_Endocytosis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1013738727,
+"0.0313048255321205" 
+],
+[
+ "mmu-mir-29b",
+"T cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29b_T cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0315740597305179" 
+],
+[
+ "mmu-mir-182",
+"Wnt signaling pathway",
+"<a href=\"mirpathways/mmu_mir_182_Wnt signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0315839727866754" 
+],
+[
+ "mmu-mir-182",
+"Hedgehog signaling pathway",
+"<a href=\"mirpathways/mmu_mir_182_Hedgehog signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.269853958,
+"0.0315839727866754" 
+],
+[
+ "mmu-mir-29b",
+"Glycerophospholipid metabolism",
+"<a href=\"mirpathways/mmu_mir_29b_Glycerophospholipid metabolism.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0318157190790213" 
+],
+[
+ "mmu-mir-29b",
+"Bacterial invasion of epithelial cells",
+"<a href=\"mirpathways/mmu_mir_29b_Bacterial invasion of epithelial cells.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0318157190790213" 
+],
+[
+ "mmu-mir-702",
+"Wnt signaling pathway",
+"<a href=\"mirpathways/mmu_mir_702_Wnt signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.0320545647884512" 
+],
+[
+ "mmu-mir-702",
+"Insulin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_702_Insulin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.0320545647884512" 
+],
+[
+ "mmu-mir-497",
+"Fatty acid metabolism",
+"<a href=\"mirpathways/mmu_mir_497_Fatty acid metabolism.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0322145647020273" 
+],
+[
+ "mmu-mir-497",
+"PPAR signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_PPAR signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0322145647020273" 
+],
+[
+ "mmu-mir-497",
+"Endocytosis",
+"<a href=\"mirpathways/mmu_mir_497_Endocytosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0322145647020273" 
+],
+[
+ "mmu-mir-497",
+"Focal adhesion",
+"<a href=\"mirpathways/mmu_mir_497_Focal adhesion.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0322145647020273" 
+],
+[
+ "mmu-mir-141",
+"ErbB signaling pathway",
+"<a href=\"mirpathways/mmu_mir_141_ErbB signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1900913258,
+"0.032394111729846" 
+],
+[
+ "mmu-mir-141",
+"Fc epsilon RI signaling pathway",
+"<a href=\"mirpathways/mmu_mir_141_Fc epsilon RI signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1900913258,
+"0.032394111729846" 
+],
+[
+ "mmu-mir-141",
+"GnRH signaling pathway",
+"<a href=\"mirpathways/mmu_mir_141_GnRH signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1900913258,
+"0.032394111729846" 
+],
+[
+ "mmu-mir-29b",
+"VEGF signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29b_VEGF signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0325452332390599" 
+],
+[
+ "mmu-mir-29b",
+"Pancreatic cancer",
+"<a href=\"mirpathways/mmu_mir_29b_Pancreatic cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0325452332390599" 
+],
+[
+ "mmu-mir-702",
+"Ubiquitin mediated proteolysis",
+"<a href=\"mirpathways/mmu_mir_702_Ubiquitin mediated proteolysis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.0329928291543854" 
+],
+[
+ "mmu-mir-96",
+"Glioma",
+"<a href=\"mirpathways/mmu_mir_96_Glioma.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1915267057,
+"0.033306904473901" 
+],
+[
+ "mmu-mir-34a",
+"Renal cell carcinoma",
+"<a href=\"mirpathways/mmu_mir_34a_Renal cell carcinoma.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.0335817121725467" 
+],
+[
+ "mmu-mir-194",
+"Regulation of actin cytoskeleton",
+"<a href=\"mirpathways/mmu_mir_194_Regulation of actin cytoskeleton.html\" target=\"_blank\">genes</a>",
+"Up",
+0.3270012056,
+"0.0342603573628126" 
+],
+[
+ "mmu-mir-194",
+"Pathways in cancer",
+"<a href=\"mirpathways/mmu_mir_194_Pathways in cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.3270012056,
+"0.0342603573628126" 
+],
+[
+ "mmu-mir-29b",
+"ECM-receptor interaction",
+"<a href=\"mirpathways/mmu_mir_29b_ECM_receptor interaction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0345615531315699" 
+],
+[
+ "mmu-mir-351",
+"Lysosome",
+"<a href=\"mirpathways/mmu_mir_351_Lysosome.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2707608118,
+"0.0351732456499771" 
+],
+[
+ "mmu-mir-351",
+"Phagosome",
+"<a href=\"mirpathways/mmu_mir_351_Phagosome.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2707608118,
+"0.0351732456499771" 
+],
+[
+ "mmu-mir-351",
+"NOD-like receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_351_NOD_like receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2707608118,
+"0.0351732456499771" 
+],
+[
+ "mmu-mir-351",
+"Leukocyte transendothelial migration",
+"<a href=\"mirpathways/mmu_mir_351_Leukocyte transendothelial migration.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2707608118,
+"0.0351732456499771" 
+],
+[
+ "mmu-mir-351",
+"Neurotrophin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_351_Neurotrophin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2707608118,
+"0.0351732456499771" 
+],
+[
+ "mmu-mir-351",
+"Progesterone-mediated oocyte maturation",
+"<a href=\"mirpathways/mmu_mir_351_Progesterone_mediated oocyte maturation.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2707608118,
+"0.0351732456499771" 
+],
+[
+ "mmu-mir-29b",
+"Fc gamma R-mediated phagocytosis",
+"<a href=\"mirpathways/mmu_mir_29b_Fc gamma R_mediated phagocytosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0355160453171571" 
+],
+[
+ "mmu-mir-29a",
+"Ubiquitin mediated proteolysis",
+"<a href=\"mirpathways/mmu_mir_29a_Ubiquitin mediated proteolysis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0358122011959071" 
+],
+[
+ "mmu-mir-29a",
+"Tight junction",
+"<a href=\"mirpathways/mmu_mir_29a_Tight junction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0358122011959071" 
+],
+[
+ "mmu-mir-29a",
+"Prostate cancer",
+"<a href=\"mirpathways/mmu_mir_29a_Prostate cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0358122011959071" 
+],
+[
+ "mmu-mir-29a",
+"Melanoma",
+"<a href=\"mirpathways/mmu_mir_29a_Melanoma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0358122011959071" 
+],
+[
+ "mmu-mir-873a",
+"B cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_873a_B cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.5127879824,
+"0.0362166297340961" 
+],
+[
+ "mmu-mir-873a",
+"Fc epsilon RI signaling pathway",
+"<a href=\"mirpathways/mmu_mir_873a_Fc epsilon RI signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.5127879824,
+"0.0362166297340961" 
+],
+[
+ "mmu-mir-873a",
+"Fc gamma R-mediated phagocytosis",
+"<a href=\"mirpathways/mmu_mir_873a_Fc gamma R_mediated phagocytosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.5127879824,
+"0.0362166297340961" 
+],
+[
+ "mmu-mir-873a",
+"Long-term depression",
+"<a href=\"mirpathways/mmu_mir_873a_Long_term depression.html\" target=\"_blank\">genes</a>",
+"Up",
+0.5127879824,
+"0.0362166297340961" 
+],
+[
+ "mmu-mir-540",
+"Huntington's disease",
+"<a href=\"mirpathways/mmu_mir_540_Huntington's disease.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3014707873,
+"0.0366639705039086" 
+],
+[
+ "mmu-mir-499",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_499_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2155030742,
+"0.0368291502841853" 
+],
+[
+ "mmu-mir-499",
+"Chemokine signaling pathway",
+"<a href=\"mirpathways/mmu_mir_499_Chemokine signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2155030742,
+"0.0368291502841853" 
+],
+[
+ "mmu-mir-499",
+"B cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_499_B cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2155030742,
+"0.0368291502841853" 
+],
+[
+ "mmu-mir-499",
+"Regulation of actin cytoskeleton",
+"<a href=\"mirpathways/mmu_mir_499_Regulation of actin cytoskeleton.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2155030742,
+"0.0368291502841853" 
+],
+[
+ "mmu-mir-29a",
+"Pyrimidine metabolism",
+"<a href=\"mirpathways/mmu_mir_29a_Pyrimidine metabolism.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.037024352086619" 
+],
+[
+ "mmu-mir-29a",
+"Wnt signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29a_Wnt signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.037024352086619" 
+],
+[
+ "mmu-mir-29b",
+"Endocytosis",
+"<a href=\"mirpathways/mmu_mir_29b_Endocytosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.037242539096918" 
+],
+[
+ "mmu-mir-29b",
+"Prostate cancer",
+"<a href=\"mirpathways/mmu_mir_29b_Prostate cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.037242539096918" 
+],
+[
+ "mmu-mir-29a",
+"Renal cell carcinoma",
+"<a href=\"mirpathways/mmu_mir_29a_Renal cell carcinoma.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0373218753474537" 
+],
+[
+ "mmu-mir-34a",
+"Melanogenesis",
+"<a href=\"mirpathways/mmu_mir_34a_Melanogenesis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.0374641960905364" 
+],
+[
+ "mmu-mir-181b",
+"RNA transport",
+"<a href=\"mirpathways/mmu_mir_181b_RNA transport.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0376179782208144" 
+],
+[
+ "mmu-mir-181b",
+"TGF-beta signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_TGF_beta signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0376179782208144" 
+],
+[
+ "mmu-mir-181b",
+"Bladder cancer",
+"<a href=\"mirpathways/mmu_mir_181b_Bladder cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0376179782208144" 
+],
+[
+ "mmu-mir-181b",
+"Non-small cell lung cancer",
+"<a href=\"mirpathways/mmu_mir_181b_Non_small cell lung cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0376179782208144" 
+],
+[
+ "mmu-mir-3065",
+"Spliceosome",
+"<a href=\"mirpathways/mmu_mir_3065_Spliceosome.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3858484078,
+"0.0376469398045169" 
+],
+[
+ "mmu-mir-181b",
+"Spliceosome",
+"<a href=\"mirpathways/mmu_mir_181b_Spliceosome.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0377556376203748" 
+],
+[
+ "mmu-mir-181b",
+"Axon guidance",
+"<a href=\"mirpathways/mmu_mir_181b_Axon guidance.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0377556376203748" 
+],
+[
+ "mmu-mir-181b",
+"NOD-like receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181b_NOD_like receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0377556376203748" 
+],
+[
+ "mmu-mir-181b",
+"Prostate cancer",
+"<a href=\"mirpathways/mmu_mir_181b_Prostate cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0377556376203748" 
+],
+[
+ "mmu-mir-337",
+"Pathways in cancer",
+"<a href=\"mirpathways/mmu_mir_337_Pathways in cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1947044072,
+"0.0383728700098179" 
+],
+[
+ "mmu-mir-702",
+"Gastric acid secretion",
+"<a href=\"mirpathways/mmu_mir_702_Gastric acid secretion.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.0384525632352274" 
+],
+[
+ "mmu-mir-873a",
+"Chemokine signaling pathway",
+"<a href=\"mirpathways/mmu_mir_873a_Chemokine signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.5127879824,
+"0.0385472391232013" 
+],
+[
+ "mmu-mir-29b",
+"Gap junction",
+"<a href=\"mirpathways/mmu_mir_29b_Gap junction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2014946137,
+"0.0389019836963937" 
+],
+[
+ "mmu-mir-191",
+"Endocytosis",
+"<a href=\"mirpathways/mmu_mir_191_Endocytosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2636293488,
+"0.0389298290342901" 
+],
+[
+ "mmu-mir-497",
+"Oocyte meiosis",
+"<a href=\"mirpathways/mmu_mir_497_Oocyte meiosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0392817860810997" 
+],
+[
+ "mmu-mir-378a",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_378a_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"ErbB signaling pathway",
+"<a href=\"mirpathways/mmu_mir_378a_ErbB signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Chemokine signaling pathway",
+"<a href=\"mirpathways/mmu_mir_378a_Chemokine signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Dorso-ventral axis formation",
+"<a href=\"mirpathways/mmu_mir_378a_Dorso_ventral axis formation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Osteoclast differentiation",
+"<a href=\"mirpathways/mmu_mir_378a_Osteoclast differentiation.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Focal adhesion",
+"<a href=\"mirpathways/mmu_mir_378a_Focal adhesion.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Gap junction",
+"<a href=\"mirpathways/mmu_mir_378a_Gap junction.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Natural killer cell mediated cytotoxicity",
+"<a href=\"mirpathways/mmu_mir_378a_Natural killer cell mediated cytotoxicity.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"T cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_378a_T cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"B cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_378a_B cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Fc epsilon RI signaling pathway",
+"<a href=\"mirpathways/mmu_mir_378a_Fc epsilon RI signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Neurotrophin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_378a_Neurotrophin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Insulin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_378a_Insulin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"GnRH signaling pathway",
+"<a href=\"mirpathways/mmu_mir_378a_GnRH signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Hepatitis C",
+"<a href=\"mirpathways/mmu_mir_378a_Hepatitis C.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Renal cell carcinoma",
+"<a href=\"mirpathways/mmu_mir_378a_Renal cell carcinoma.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Endometrial cancer",
+"<a href=\"mirpathways/mmu_mir_378a_Endometrial cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Glioma",
+"<a href=\"mirpathways/mmu_mir_378a_Glioma.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Prostate cancer",
+"<a href=\"mirpathways/mmu_mir_378a_Prostate cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Chronic myeloid leukemia",
+"<a href=\"mirpathways/mmu_mir_378a_Chronic myeloid leukemia.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Acute myeloid leukemia",
+"<a href=\"mirpathways/mmu_mir_378a_Acute myeloid leukemia.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-378a",
+"Non-small cell lung cancer",
+"<a href=\"mirpathways/mmu_mir_378a_Non_small cell lung cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.3338484974,
+"0.0403698598825635" 
+],
+[
+ "mmu-mir-497",
+"mTOR signaling pathway",
+"<a href=\"mirpathways/mmu_mir_497_mTOR signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0411024049277636" 
+],
+[
+ "mmu-mir-34a",
+"Vasopressin-regulated water reabsorption",
+"<a href=\"mirpathways/mmu_mir_34a_Vasopressin_regulated water reabsorption.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.0417658627224976" 
+],
+[
+ "mmu-mir-34a",
+"Salivary secretion",
+"<a href=\"mirpathways/mmu_mir_34a_Salivary secretion.html\" target=\"_blank\">genes</a>",
+"Down",
+0.21361748,
+"0.0417658627224976" 
+],
+[
+ "mmu-mir-130a",
+"Gap junction",
+"<a href=\"mirpathways/mmu_mir_130a_Gap junction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2299840581,
+"0.0424589068775359" 
+],
+[
+ "mmu-mir-30c",
+"Calcium signaling pathway",
+"<a href=\"mirpathways/mmu_mir_30c_Calcium signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2799454066,
+"0.0427977064318704" 
+],
+[
+ "mmu-mir-29a",
+"Adipocytokine signaling pathway",
+"<a href=\"mirpathways/mmu_mir_29a_Adipocytokine signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0443477533240486" 
+],
+[
+ "mmu-mir-29a",
+"Type II diabetes mellitus",
+"<a href=\"mirpathways/mmu_mir_29a_Type II diabetes mellitus.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0443477533240486" 
+],
+[
+ "mmu-mir-29a",
+"Colorectal cancer",
+"<a href=\"mirpathways/mmu_mir_29a_Colorectal cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2170784309,
+"0.0443477533240486" 
+],
+[
+ "mmu-mir-217",
+"Wnt signaling pathway",
+"<a href=\"mirpathways/mmu_mir_217_Wnt signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.07393219317,
+"0.0444740461351109" 
+],
+[
+ "mmu-mir-217",
+"Hedgehog signaling pathway",
+"<a href=\"mirpathways/mmu_mir_217_Hedgehog signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.07393219317,
+"0.0444740461351109" 
+],
+[
+ "mmu-mir-217",
+"Regulation of actin cytoskeleton",
+"<a href=\"mirpathways/mmu_mir_217_Regulation of actin cytoskeleton.html\" target=\"_blank\">genes</a>",
+"Up",
+0.07393219317,
+"0.0444740461351109" 
+],
+[
+ "mmu-mir-212",
+"Purine metabolism",
+"<a href=\"mirpathways/mmu_mir_212_Purine metabolism.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1095308358,
+"0.04449861941609" 
+],
+[
+ "mmu-mir-212",
+"Cell cycle",
+"<a href=\"mirpathways/mmu_mir_212_Cell cycle.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1095308358,
+"0.04449861941609" 
+],
+[
+ "mmu-mir-497",
+"Salivary secretion",
+"<a href=\"mirpathways/mmu_mir_497_Salivary secretion.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0446582366296256" 
+],
+[
+ "mmu-mir-181b",
+"Melanogenesis",
+"<a href=\"mirpathways/mmu_mir_181b_Melanogenesis.html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0447577252959155" 
+],
+[
+ "mmu-mir-181b",
+"Chagas disease (American trypanosomiasis)",
+"<a href=\"mirpathways/mmu_mir_181b_Chagas disease (American trypanosomiasis).html\" target=\"_blank\">genes</a>",
+"Down",
+0.2130674477,
+"0.0447577252959155" 
+],
+[
+ "mmu-mir-351",
+"Oocyte meiosis",
+"<a href=\"mirpathways/mmu_mir_351_Oocyte meiosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2707608118,
+"0.0449464746135756" 
+],
+[
+ "mmu-mir-200a",
+"Non-small cell lung cancer",
+"<a href=\"mirpathways/mmu_mir_200a_Non_small cell lung cancer.html\" target=\"_blank\">genes</a>",
+"Down",
+0.1967983761,
+"0.0459375695061828" 
+],
+[
+ "mmu-mir-497",
+"Protein processing in endoplasmic reticulum",
+"<a href=\"mirpathways/mmu_mir_497_Protein processing in endoplasmic reticulum.html\" target=\"_blank\">genes</a>",
+"Up",
+0.110617492,
+"0.0459846555747631" 
+],
+[
+ "mmu-mir-130a",
+"Calcium signaling pathway",
+"<a href=\"mirpathways/mmu_mir_130a_Calcium signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2299840581,
+"0.0460744727252555" 
+],
+[
+ "mmu-mir-130a",
+"Cytokine-cytokine receptor interaction",
+"<a href=\"mirpathways/mmu_mir_130a_Cytokine_cytokine receptor interaction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2299840581,
+"0.0460744727252555" 
+],
+[
+ "mmu-mir-130a",
+"TGF-beta signaling pathway",
+"<a href=\"mirpathways/mmu_mir_130a_TGF_beta signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2299840581,
+"0.0460744727252555" 
+],
+[
+ "mmu-mir-130a",
+"Axon guidance",
+"<a href=\"mirpathways/mmu_mir_130a_Axon guidance.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2299840581,
+"0.0460744727252555" 
+],
+[
+ "mmu-mir-130a",
+"Focal adhesion",
+"<a href=\"mirpathways/mmu_mir_130a_Focal adhesion.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2299840581,
+"0.0460744727252555" 
+],
+[
+ "mmu-mir-130a",
+"Regulation of actin cytoskeleton",
+"<a href=\"mirpathways/mmu_mir_130a_Regulation of actin cytoskeleton.html\" target=\"_blank\">genes</a>",
+"Up",
+0.2299840581,
+"0.0460744727252555" 
+],
+[
+ "mmu-mir-124",
+"Phagosome",
+"<a href=\"mirpathways/mmu_mir_124_Phagosome.html\" target=\"_blank\">genes</a>",
+"Up",
+0.04499020957,
+"0.0463664543871686" 
+],
+[
+ "mmu-mir-124",
+"Fc gamma R-mediated phagocytosis",
+"<a href=\"mirpathways/mmu_mir_124_Fc gamma R_mediated phagocytosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.04499020957,
+"0.0463664543871686" 
+],
+[
+ "mmu-mir-181a",
+"Neurotrophin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181a_Neurotrophin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.5784626102,
+"0.046690509479911" 
+],
+[
+ "mmu-mir-181a",
+"mTOR signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181a_mTOR signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.5784626102,
+"0.046785468122207" 
+],
+[
+ "mmu-mir-702",
+"Neurotrophin signaling pathway",
+"<a href=\"mirpathways/mmu_mir_702_Neurotrophin signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.02339487508,
+"0.0469125529369061" 
+],
+[
+ "mmu-mir-181a",
+"MAPK signaling pathway",
+"<a href=\"mirpathways/mmu_mir_181a_MAPK signaling pathway.html\" target=\"_blank\">genes</a>",
+"Down",
+0.5784626102,
+"0.0469692502225958" 
+],
+[
+ "mmu-mir-103",
+"Tight junction",
+"<a href=\"mirpathways/mmu_mir_103_Tight junction.html\" target=\"_blank\">genes</a>",
+"Up",
+0.1139597608,
+"0.0471491305476237" 
+],
+[
+ "mmu-mir-103",
+"Fc gamma R-mediated phagocytosis",
+"<a href=\"mirpathways/mmu_mir_103_Fc gamma R_mediated phagocytosis.html\" target=\"_blank\">genes</a>",
+"Up",
+0.1139597608,
+"0.0471491305476237" 
+],
+[
+ "mmu-mir-124",
+"SNARE interactions in vesicular transport",
+"<a href=\"mirpathways/mmu_mir_124_SNARE interactions in vesicular transport.html\" target=\"_blank\">genes</a>",
+"Up",
+0.04499020957,
+"0.0472280334506669" 
+],
+[
+ "mmu-mir-103",
+"mRNA surveillance pathway",
+"<a href=\"mirpathways/mmu_mir_103_mRNA surveillance pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.1139597608,
+"0.0476907720991007" 
+],
+[
+ "mmu-mir-103",
+"T cell receptor signaling pathway",
+"<a href=\"mirpathways/mmu_mir_103_T cell receptor signaling pathway.html\" target=\"_blank\">genes</a>",
+"Up",
+0.1139597608,
+"0.0476907720991007" 
+],
+[
+ "mmu-mir-342",
+"Prostate cancer",
+"<a href=\"mirpathways/mmu_mir_342_Prostate cancer.html\" target=\"_blank\">genes</a>",
+"Up",
+0.0637149342,
+"0.0482537809685736" 
+],
+[
+ "mmu-mir-7a",
+"Parkinson's disease",
+"<a href=\"mirpathways/mmu_mir_7a_Parkinson's disease.html\" target=\"_blank\">genes</a>",
+"Down",
+0.516080412,
+"0.0492162036003279" 
+] 
+];
+data.addColumn('string','microRNA');
+data.addColumn('string','Pathway');
+data.addColumn('string','Genes');
+data.addColumn('string','Direction');
+data.addColumn('number','microRNA DE p-value');
+data.addColumn('string','Intergrative Score');
+data.addRows(datajson);
+return(data);
+}
+ 
+// jsDrawChart
+function drawChartTableID14c41b04275() {
+var data = gvisDataTableID14c41b04275();
+var options = {};
+options["allowHtml"] = true;
+options["width"] = "100em";
+
+  var dataFormat1 = new google.visualization.NumberFormat({pattern:"#.###"});
+  dataFormat1.format(data, 0);
+  var dataFormat2 = new google.visualization.NumberFormat({pattern:"#.###"});
+  dataFormat2.format(data, 1);
+  var dataFormat3 = new google.visualization.NumberFormat({pattern:"#.###"});
+  dataFormat3.format(data, 2);
+  var dataFormat4 = new google.visualization.NumberFormat({pattern:"#.###"});
+  dataFormat4.format(data, 3);
+  var dataFormat5 = new google.visualization.NumberFormat({pattern:"#.###"});
+  dataFormat5.format(data, 4);
+  var dataFormat6 = new google.visualization.NumberFormat({pattern:"#.###"});
+  dataFormat6.format(data, 5);
+
+    var chart = new google.visualization.Table(
+    document.getElementById('TableID14c41b04275')
+    );
+    chart.draw(data,options);
+    
+
+}
+  
+ 
+// jsDisplayChart
+(function() {
+var pkgs = window.__gvisPackages = window.__gvisPackages || [];
+var callbacks = window.__gvisCallbacks = window.__gvisCallbacks || [];
+var chartid = "table";
+  
+// Manually see if chartid is in pkgs (not all browsers support Array.indexOf)
+var i, newPackage = true;
+for (i = 0; newPackage && i < pkgs.length; i++) {
+if (pkgs[i] === chartid)
+newPackage = false;
+}
+if (newPackage)
+  pkgs.push(chartid);
+  
+// Add the drawChart function to the global list of callbacks
+callbacks.push(drawChartTableID14c41b04275);
+})();
+function displayChartTableID14c41b04275() {
+  var pkgs = window.__gvisPackages = window.__gvisPackages || [];
+  var callbacks = window.__gvisCallbacks = window.__gvisCallbacks || [];
+  window.clearTimeout(window.__gvisLoad);
+  // The timeout is set to 100 because otherwise the container div we are
+  // targeting might not be part of the document yet
+  window.__gvisLoad = setTimeout(function() {
+  var pkgCount = pkgs.length;
+  google.load("visualization", "1", { packages:pkgs, callback: function() {
+  if (pkgCount != pkgs.length) {
+  // Race condition where another setTimeout call snuck in after us; if
+  // that call added a package, we must not shift its callback
+  return;
+}
+while (callbacks.length > 0)
+callbacks.shift()();
+} });
+}, 100);
+}
+ 
+// jsFooter
+</script>
+ 
+<!-- jsChart -->  
+<script type="text/javascript" src="https://www.google.com/jsapi?callback=displayChartTableID14c41b04275"></script>
+ 
+<!-- divChart -->
+  
+<div id="TableID14c41b04275"
+  style="width: 100empx; height: 500px;">
+</div>
+ <div><span>Data: as.data.frame(results) &#8226; Chart ID: <a href="Chart_TableID14c41b04275.html">TableID14c41b04275</a> &#8226; <a href="https://github.com/mages/googleVis">googleVis-0.5.2</a></span><br /> 
+<!-- htmlFooter -->
+<span> 
+  R version 3.1.0 (2014-04-10) 
+  &#8226; <a href="https://developers.google.com/terms/">Google Terms of Use</a> &#8226; <a href="https://google-developers.appspot.com/chart/interactive/docs/gallery/table">Documentation and Data Policy</a>
+</span></div>
+</body>
+</html>
+ html
+
+```r
+
+```
+
+

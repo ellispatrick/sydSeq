@@ -11,5 +11,6 @@ import(
   edgeR,
   Biobase,
   GenomicFeatures,
-  GenomicRanges
+  GenomicRanges,
+googleVis
 )
