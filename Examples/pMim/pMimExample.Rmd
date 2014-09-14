@@ -1,7 +1,13 @@
 pMim - Integrating RNA-Seq, miRNA-Seq and pathway information
 ========================================================
 
-The following provides an example of how to use pMim. Start by reading in the RNA-Seq and miRNA-Seq data.
+```{r include=FALSE}
+opts_chunk$set(message=FALSE, warning=FALSE)
+```
+
+
+The following provides an example of how to use pMim. The markdown code that generated this html file can be doun on my github account at <a href="https://github.com/ellispatrick/sydSeq/blob/master/Examples/pMim/pMimExample.Rmd" target="_blank"> pMimExample.Rmd </a>. Start by reading in the RNA-Seq and miRNA-Seq data.
+
 
 ```{r}
 ### Load packages

@@ -37,5 +37,5 @@ pMimHTML = function(output,dir = 'mirpathways',cutoff = 0.05,filename = 'pMimRes
   results = as.data.frame(results)
   print(gvisTable(results,format = form,options = list(width = '100em')),type = 'html',file = filename)
   
-  if(outputHTML == TRUE)gvisTable(as.data.frame(results),format = form,options = list(width = '100em'))
+  if(outputHTML == TRUE)gvisTable(results,format = form,options = list(width = '100em'))
 }

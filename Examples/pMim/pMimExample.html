@@ -181,83 +181,14 @@ hljs.initHighlightingOnLoad();
 <body>
 <h1>pMim - Integrating RNA-Seq, miRNA-Seq and pathway information</h1>
 
-<p>The following provides an example of how to use pMim. Start by reading in the RNA-Seq and miRNA-Seq data.</p>
+<p>The following provides an example of how to use pMim. The markdown code that generated this html file can be doun on my github account at <a href="https://github.com/ellispatrick/sydSeq/blob/master/Examples/pMim/pMimExample.Rmd" target="_blank"> pMimExample.Rmd </a>. Start by reading in the RNA-Seq and miRNA-Seq data.</p>
 
 <pre><code class="r">### Load packages
 library(sydSeq)  #For pMimCor
-</code></pre>
+library(multiMiR)  #For getting miRNA target genes easily
+library(goseq)  #For getting KEGG pathways easily
+library(KEGG.db)
 
-<pre><code>## Loading required package: Biobase
-## Loading required package: BiocGenerics
-## Loading required package: parallel
-## 
-## Attaching package: &#39;BiocGenerics&#39;
-## 
-## The following objects are masked from &#39;package:parallel&#39;:
-## 
-##     clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
-##     clusterExport, clusterMap, parApply, parCapply, parLapply,
-##     parLapplyLB, parRapply, parSapply, parSapplyLB
-## 
-## The following object is masked from &#39;package:stats&#39;:
-## 
-##     xtabs
-## 
-## The following objects are masked from &#39;package:base&#39;:
-## 
-##     anyDuplicated, append, as.data.frame, as.vector, cbind,
-##     colnames, do.call, duplicated, eval, evalq, Filter, Find, get,
-##     intersect, is.unsorted, lapply, Map, mapply, match, mget,
-##     order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
-##     rbind, Reduce, rep.int, rownames, sapply, setdiff, sort,
-##     table, tapply, union, unique, unlist
-## 
-## Welcome to Bioconductor
-## 
-##     Vignettes contain introductory material; view with
-##     &#39;browseVignettes()&#39;. To cite Bioconductor, see
-##     &#39;citation(&quot;Biobase&quot;)&#39;, and for packages &#39;citation(&quot;pkgname&quot;)&#39;.
-## 
-## Loading required package: GenomicFeatures
-## Loading required package: IRanges
-## Loading required package: GenomicRanges
-## Loading required package: GenomeInfoDb
-## Loading required package: AnnotationDbi
-</code></pre>
-
-<pre><code>## Warning: replacing previous import by &#39;DESeq::plotMA&#39; when loading
-## &#39;sydSeq&#39;
-</code></pre>
-
-<pre><code>## Note: the specification for S3 class &quot;AsIs&quot; in package &#39;RJSONIO&#39; seems equivalent to one from package &#39;BiocGenerics&#39;: not turning on duplicate class definitions for this class.
-</code></pre>
-
-<pre><code class="r">library(multiMiR)  #For getting miRNA target genes easily
-</code></pre>
-
-<pre><code>## Loading required package: DBI
-</code></pre>
-
-<pre><code class="r">library(goseq)  #For getting KEGG pathways easily
-</code></pre>
-
-<pre><code>## Loading required package: BiasedUrn
-## Loading required package: geneLenDataBase
-</code></pre>
-
-<pre><code class="r">library(KEGG.db)
-</code></pre>
-
-<pre><code>## 
-## KEGG.db contains mappings based on older data because the original
-##   resource was removed from the the public domain before the most
-##   recent update was produced. This package should now be
-##   considered deprecated and future versions of Bioconductor may
-##   not have it available.  Users who want more current data are
-##   encouraged to look at the KEGGREST or reactome.db packages
-</code></pre>
-
-<pre><code class="r">
 ### Load Notch2 Knockout counts for use as an example.
 
 load(&quot;counts.RData&quot;)
@@ -295,12 +226,7 @@ DataMi = DataMi * matrix(tmm(DataMi), dim(DataMi)[1], dim(DataMi)[2], byrow = TR
 
 ### KEGG can be loaded as follows
 kegg = getgo(rownames(Data), fetch.cats = &quot;KEGG&quot;, genome = &quot;mm10&quot;, id = &quot;ensGene&quot;)
-</code></pre>
-
-<pre><code>## 
-</code></pre>
-
-<pre><code class="r">kegg2ens = Biobase::reverseSplit(kegg)
+kegg2ens = Biobase::reverseSplit(kegg)
 kname = mget(names(kegg2ens), env = KEGGPATHID2NAME)
 names(kegg2ens) = kname
 # kegg2ens is our list of pathways
@@ -334,18 +260,7 @@ output = pMim(DataMi = DataMi, DataG = Data, classes = classes, targets = target
 
 <pre><code>## You might want to consider filtering out genes with small average expression from your data.
 ## You might want to consider filtering out miRNA with small average expression from your data.
-</code></pre>
-
-<pre><code>## Loading required package: limma
-## 
-## Attaching package: &#39;limma&#39;
-## 
-## The following object is masked from &#39;package:BiocGenerics&#39;:
-## 
-##     plotMA
-</code></pre>
-
-<pre><code>## &quot;Up&quot; is WT expression greater than KO expression in miRNA
+## &quot;Up&quot; is WT expression greater than KO expression in miRNA
 </code></pre>
 
 <pre><code class="r">
@@ -390,36 +305,14 @@ GeneSymbol = Symbol
 
 htmlOutput = pMimHTML(output, dir = &quot;mirpathways&quot;, cutoff = 0.05, filename = &quot;pMimResults.html&quot;, 
     GeneSymbol = Symbol, outputHTML = TRUE)
-</code></pre>
-
-<pre><code>## Loading required package: googleVis
-## 
-## Welcome to googleVis version 0.5.2
-## 
-## Please read the Google API Terms of Use
-## before you use the package:
-## https://developers.google.com/terms/
-## 
-## Note, the plot method of googleVis will by default use
-## the standard browser to display its output.
-## 
-## See the googleVis package vignettes for more details.
-## 
-## To suppress the this message use:
-## suppressPackageStartupMessages(library(googleVis))
-</code></pre>
-
-<pre><code>## Warning: &#39;mirpathways&#39; already exists
-</code></pre>
-
-<pre><code class="r">print(htmlOutput, type = &quot;html&quot;)
+print(htmlOutput, type = &quot;html&quot;)
 </code></pre>
 
 <p>&lt;!DOCTYPE html PUBLIC &ldquo;-//W3C//DTD XHTML 1.0 Strict//EN&rdquo;
   &ldquo;<a href="http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd%22%3E">http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&rdquo;&gt;</a>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>TableID14c41b04275</title>
+<title>TableID5003d31e3a</title>
 <meta http-equiv="content-type" content="text/html;charset=utf-8" /></p>
 
 <style type="text/css">
@@ -438,14 +331,14 @@ body {
 <body>
  &lt;!&ndash; Table generated in R 3.1.0 by googleVis 0.5.2 package &ndash;&gt;</p>
 
-<!-- Sun Sep 14 14:11:05 2014 -->
+<!-- Sun Sep 14 15:55:11 2014 -->
 
 <!-- jsHeader -->
 
 <script type="text/javascript">
  
 // jsData 
-function gvisDataTableID14c41b04275 () {
+function gvisDataTableID5003d31e3a () {
 var data = new google.visualization.DataTable();
 var datajson =
 [
@@ -3349,8 +3242,8 @@ return(data);
 }
  
 // jsDrawChart
-function drawChartTableID14c41b04275() {
-var data = gvisDataTableID14c41b04275();
+function drawChartTableID5003d31e3a() {
+var data = gvisDataTableID5003d31e3a();
 var options = {};
 options["allowHtml"] = true;
 options["width"] = "100em";
@@ -3369,7 +3262,7 @@ options["width"] = "100em";
   dataFormat6.format(data, 5);
 
     var chart = new google.visualization.Table(
-    document.getElementById('TableID14c41b04275')
+    document.getElementById('TableID5003d31e3a')
     );
     chart.draw(data,options);
     
@@ -3393,9 +3286,9 @@ if (newPackage)
   pkgs.push(chartid);
   
 // Add the drawChart function to the global list of callbacks
-callbacks.push(drawChartTableID14c41b04275);
+callbacks.push(drawChartTableID5003d31e3a);
 })();
-function displayChartTableID14c41b04275() {
+function displayChartTableID5003d31e3a() {
   var pkgs = window.__gvisPackages = window.__gvisPackages || [];
   var callbacks = window.__gvisCallbacks = window.__gvisCallbacks || [];
   window.clearTimeout(window.__gvisLoad);
@@ -3421,16 +3314,16 @@ callbacks.shift()();
 
 <!-- jsChart -->  
 
-<script type="text/javascript" src="https://www.google.com/jsapi?callback=displayChartTableID14c41b04275"></script>
+<script type="text/javascript" src="https://www.google.com/jsapi?callback=displayChartTableID5003d31e3a"></script>
  
 
 <!-- divChart -->
 
-<div id="TableID14c41b04275"
+<div id="TableID5003d31e3a"
   style="width: 100empx; height: 500px;">
 </div>
 
-<p><div><span>Data: as.data.frame(results) &#8226; Chart ID: <a href="Chart_TableID14c41b04275.html">TableID14c41b04275</a> &#8226; <a href="https://github.com/mages/googleVis">googleVis-0.5.2</a></span><br /> </p>
+<p><div><span>Data: results &#8226; Chart ID: <a href="Chart_TableID5003d31e3a.html">TableID5003d31e3a</a> &#8226; <a href="https://github.com/mages/googleVis">googleVis-0.5.2</a></span><br /> </p>
 
 <!-- htmlFooter -->
 
