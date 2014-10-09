@@ -2,8 +2,8 @@ pMimHTML = function(output,dir = 'mirpathways',cutoff = 0.05,filename = 'pMimRes
   require(googleVis)
   results = output$Results
   results = results[results[,'Score'] <= cutoff,]
-  
-  results = data.frame(results, miRNA.DE.pvalue = 2*pnorm(-abs(output$Zmi[results[,'miRNA']])),genes = rep(NA,dim(results)[1]))
+  results = data.frame(results, miRNA.DE.pvalue = 2*pnorm(-abs(output$Zmi[results[,'miRNA']])),genes = rep(NA,dim(results)[1]),stringsAsFactors = FALSE)
+  results[,'Score'] = as.numeric(results[,'Score'])
   results = results[,c(1,2,6,3,5,4)]
   colnames(results) = c('microRNA','Pathway','Genes','Direction','microRNA DE p-value','Intergrative Score')
   
@@ -25,7 +25,7 @@ pMimHTML = function(output,dir = 'mirpathways',cutoff = 0.05,filename = 'pMimRes
     file = paste(dir,file,sep= '/')
     gene.files[i] = file
     res = res[order(res[,4]),]
-    print(gvisTable(res,format = form,options = list(width = '100em')),type = 'html',file = file)
+    print(gvisTable(res,format = form,options = list(width = '60em')),type = 'html',file = file)
   }
   
   
@@ -35,7 +35,7 @@ pMimHTML = function(output,dir = 'mirpathways',cutoff = 0.05,filename = 'pMimRes
   form = as.list(rep('#.###',6))
   names(form) = colnames(results)
   results = as.data.frame(results)
-  print(gvisTable(results,format = form,options = list(width = '100em')),type = 'html',file = filename)
+  print(gvisTable(results,format = form,options = list(width = '80em')),type = 'html',file = filename)
   
   if(outputHTML == TRUE)gvisTable(results,format = form,options = list(width = '100em'))
 }
