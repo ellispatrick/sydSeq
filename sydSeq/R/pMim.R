@@ -109,7 +109,7 @@ pMim = function (DataMi, DataG, classes, targets, pathways, Zmi = NULL,
     tr = TR[i, ]
     binding = mapMat[i, ]
     if (tolower(stat) == "de") {
-      t = Zg[names(TR[i, ])]
+      t = Zg[names(TR[i, ])]*sign(Zmi[i])
     }
     if (tolower(stat) == "cor") {
       t = TR[i, ]

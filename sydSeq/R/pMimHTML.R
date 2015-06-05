@@ -14,7 +14,7 @@ pMimHTML = function(output,dir = 'mirpathways',cutoff = 0.05,filename = 'pMimRes
     path = as.character(results[i,2])
     genes = intersect(output$targets[[miRNA]],output$pathways[[path]])
     Correlation = output$cor[miRNA,genes]
-    corP = pnorm(output$corTransform[miRNA,genes]*sign(output$Zmi[miRNA]))
+    corP = pnorm(output$corTransform[miRNA,genes])
     DE = pnorm(output$Zg[genes]*sign(output$Zmi[miRNA]))
     if(!is.null(GeneSymbol))genes = GeneSymbol[genes]
     res = data.frame(Genes = genes,'One Sided DE P-value' = DE,Correlation = Correlation,'One Sided Correlation P-value' = corP)
