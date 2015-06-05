@@ -25,7 +25,7 @@ pMim = function (DataMi, DataG, classes, targets, pathways, Zmi = NULL,
   y = names(classes)
   X = t(DataG)
   Y = t(DataMi)
-  if (stat == "cor") {
+ 
     corYX = cor(Y[y, ], X[y, ])
     n = length(y)
     if (corP == "estimate") {
@@ -42,7 +42,7 @@ pMim = function (DataMi, DataG, classes, targets, pathways, Zmi = NULL,
         break
       }
     }
-  }
+  
   if (is.null(Zmi)) {
     require(limma)
     design = model.matrix(~classes)
