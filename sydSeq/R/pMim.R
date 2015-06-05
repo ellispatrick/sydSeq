@@ -42,6 +42,7 @@ pMim = function (DataMi, DataG, classes, targets, pathways, Zmi = NULL,
         break
       }
     }
+  design = model.matrix(~classes)
   
   if (is.null(Zmi)) {
     require(limma)
