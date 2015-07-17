@@ -1,7 +1,7 @@
 pMimHTML = function(output,dir = 'mirpathways',cutoff = 0.05,filename = 'pMimResults.html',GeneSymbol = NULL,outputHTML=FALSE){
   require(googleVis)
   results = output$Results
-  results = results[results[,'Score'] <= cutoff,]
+  results = results[as.numeric(results[,'Score']) <= cutoff,]
   results = data.frame(results, miRNA.DE.pvalue = 2*pnorm(-abs(output$Zmi[results[,'miRNA']])),genes = rep(NA,dim(results)[1]),stringsAsFactors = FALSE)
   results[,'Score'] = as.numeric(results[,'Score'])
   results = results[,c(1,2,6,3,5,4)]
