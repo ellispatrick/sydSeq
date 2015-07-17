@@ -133,7 +133,7 @@ pMim = function (DataMi, DataG, classes, targets, pathways, Zmi = NULL,
   updown[updown == -1] = "Down"
   use = which(!is.na(pval), 2)
   res = cbind(rownames(use) ,  colnames(pval)[use[,2]] , updown[use] , pval[use])
-  res = res[order(res[, 4]), ]
+  res = res[order(as.numeric(res[, 4])), ]
   
   colnames(res) = c("miRNA", "Pathways", "direction", "Score")
   
